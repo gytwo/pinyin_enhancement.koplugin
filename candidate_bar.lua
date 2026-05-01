@@ -751,20 +751,47 @@ local function handleAddChar(key)
         return false
     end
     
+    local key_char = key
     if type(key) == "table" then
-        if key.key then
-            key = key.key
-        elseif key.label then
-            key = key.label
+        if key.key and type(key.key) == "string" then
+            key_char = key.key
+        elseif key.label and type(key.label) == "string" then
+            key_char = key.label
         else
             return false
         end
     end
     
-    if (key >= "a" and key <= "z") or (key >= "A" and key <= "Z") then
-        current_pinyin = current_pinyin .. key:lower()
-        rebuildFirstRow()
-        return true
+    if type(key_char) ~= "string" then
+        return false
+    end
+    
+    -- 取第一个字符
+    key_char = key_char:sub(1, 1)
+    
+    -- 判断是否为字母
+    local lower_char = key_char:lower()
+    if (lower_char >= "a" and lower_char <= "z") then
+        -- 判断是否为大写字母
+        if key_char >= "A" and key_char <= "Z" then
+            -- 大写字母直接上屏
+            local inputbox = current_inputbox
+            if not inputbox and current_ime then
+                inputbox = current_ime._inputbox or current_ime.inputbox
+                if inputbox then
+                    current_inputbox = inputbox
+                end
+            end
+            if inputbox and inputbox.addChars then
+                inputbox:addChars(key_char)
+            end
+            return true
+        else
+            -- 小写字母作为拼音
+            current_pinyin = current_pinyin .. key_char
+            rebuildFirstRow()
+            return true
+        end
     end
     
     return false

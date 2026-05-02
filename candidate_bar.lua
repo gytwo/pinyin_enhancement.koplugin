@@ -47,6 +47,15 @@ local original_key_height = nil
 -- 最小理论宽度倍数（0.8倍标准宽度）
 local MIN_WIDTH_RATIO = 0.8
 
+-- 键盘宽度模式
+local key_width_mode = "dynamic"
+
+-- 固定宽度模式使用的按键引用
+local candidate_key_refs = {}
+local pinyin_key = nil
+local prev_page_key = nil
+local next_page_key = nil
+
 -- 获取候选词标准宽度倍数配置
 local function getCandidateWidthMultiplier()
     local mult = G_reader_settings:readSetting("pinyin_candidate_width_multiplier")
@@ -82,6 +91,20 @@ local function getLimitCandidates()
         return true
     end
     return limit
+end
+
+-- 获取键盘宽度模式
+local function getKeyWidthMode()
+    local mode = G_reader_settings:readSetting("pinyin_key_width_mode")
+    if mode == nil then
+        return "dynamic"
+    end
+    return mode
+end
+
+-- 更新键盘宽度模式
+local function updateKeyWidthMode()
+    key_width_mode = getKeyWidthMode()
 end
 
 -- 根据文本长度计算合适的字体大小
@@ -213,7 +236,7 @@ local function getRawCandidatesFromCodeMap(pinyin)
     return result
 end
 
--- 自定义 VirtualKey
+-- 自定义 VirtualKey（动态宽度模式使用）
 local MyVirtualKey = InputContainer:extend{
     label = nil,
     keyboard = nil,
@@ -246,7 +269,7 @@ function MyVirtualKey:init()
 
     self[1] = FrameContainer:new{
         margin = 0,
-        bordersize = self.bordersize,
+        bordersize = 0,
         background = bg_color,
         radius = 0,
         padding = 0,
@@ -313,16 +336,6 @@ end
 function MyVirtualKey:onHoldSelect()
     if self.hold_callback then
         self.hold_callback()
-    end
-    return true
-end
-
--- 双击计时器
-local double_tap_timer = nil
-
-function MyVirtualKey:onDoubleTap()
-    if self.double_tap_callback then
-        self.double_tap_callback()
     end
     return true
 end
@@ -402,7 +415,7 @@ local function loadCodeMapDirectly()
     return false
 end
 
--- 获取所有候选词并分页
+-- 获取所有候选词并分页（根据模式使用不同逻辑）
 local function updateCandidates()
     if not code_map or current_pinyin == "" then
         current_candidates = nil
@@ -420,35 +433,53 @@ local function updateCandidates()
     end
     
     local multiplier = getCandidateWidthMultiplier()
-    
     local pages = {}
-    local current_page_cands = {}
-    local current_width = 0
     
-    for _, cand in ipairs(all_candidates) do
-        local word_width = getWordWidth(cand) * multiplier
-        local theoretical_width = math.max(word_width, MIN_WIDTH_RATIO)
-        
-        if current_width + theoretical_width <= CANDIDATE_STD_WIDTH then
-            table.insert(current_page_cands, cand)
-            current_width = current_width + theoretical_width
-        else
-            if #current_page_cands > 0 then
-                table.insert(pages, {
-                    candidates = current_page_cands,
-                    theoretical_width = current_width
-                })
+    if key_width_mode == "fixed" then
+        -- 固定宽度模式：每页固定 7 个候选词
+        local items_per_page = 7
+        local total = #all_candidates
+        for start_idx = 1, total, items_per_page do
+            local end_idx = math.min(start_idx + items_per_page - 1, total)
+            local page_cands = {}
+            for i = start_idx, end_idx do
+                table.insert(page_cands, all_candidates[i])
             end
-            current_page_cands = { cand }
-            current_width = theoretical_width
+            table.insert(pages, {
+                candidates = page_cands,
+                theoretical_width = #page_cands
+            })
         end
-    end
-    
-    if #current_page_cands > 0 then
-        table.insert(pages, {
-            candidates = current_page_cands,
-            theoretical_width = current_width
-        })
+    else
+        -- 动态宽度模式：原有逻辑
+        local current_width = 0
+        local current_page_cands = {}
+        
+        for _, cand in ipairs(all_candidates) do
+            local word_width = getWordWidth(cand) * multiplier
+            local theoretical_width = math.max(word_width, MIN_WIDTH_RATIO)
+            
+            if current_width + theoretical_width <= CANDIDATE_STD_WIDTH then
+                table.insert(current_page_cands, cand)
+                current_width = current_width + theoretical_width
+            else
+                if #current_page_cands > 0 then
+                    table.insert(pages, {
+                        candidates = current_page_cands,
+                        theoretical_width = current_width
+                    })
+                end
+                current_page_cands = { cand }
+                current_width = theoretical_width
+            end
+        end
+        
+        if #current_page_cands > 0 then
+            table.insert(pages, {
+                candidates = current_page_cands,
+                theoretical_width = current_width
+            })
+        end
     end
     
     current_candidates = pages
@@ -529,18 +560,8 @@ local function addCandidateRowToKeyboardLayout()
     return true
 end
 
--- 只重建第一行
-function rebuildFirstRow()
-    if not current_keyboard then
-        return
-    end
-    
-    if not pinyin_enabled then
-        return
-    end
-    
-    updateCandidates()
-    
+-- 动态宽度模式：重建第一行
+local function rebuildFirstRowDynamic()
     local key_padding = current_keyboard.key_padding
     local padding = current_keyboard.padding
     
@@ -561,6 +582,7 @@ function rebuildFirstRow()
     local base_key_height = original_key_height
     local base_key_width = math.floor((current_keyboard.width - (10 + 1) * key_padding - 2 * padding) / 10)
     local multiplier = getCandidateWidthMultiplier()
+    local min_key_width = base_key_width * MIN_WIDTH_RATIO
     
     local row = {}
     local idx = 1
@@ -579,7 +601,7 @@ function rebuildFirstRow()
         for _, cand in ipairs(candidates) do
             local word_width = getWordWidth(cand) * multiplier
             local raw_width = base_key_width * word_width + (word_width - 1) * key_padding
-            local key_width = math.max(raw_width, base_key_width * MIN_WIDTH_RATIO)
+            local key_width = math.max(raw_width, min_key_width)
             row[idx] = { label = cand, width = key_width }
             idx = idx + 1
         end
@@ -615,7 +637,7 @@ function rebuildFirstRow()
     local horizontal_group = HorizontalGroup:new{ allow_mirroring = false }
     local new_row_widgets = {}
     local x = padding
-    local y = 0
+    local y = padding
     
     for i, key_spec in ipairs(row) do
         local new_key = MyVirtualKey:new{
@@ -668,24 +690,18 @@ function rebuildFirstRow()
         local vertical_group = keyboard_frame[1][1]
         if vertical_group then
             vertical_group[1] = horizontal_group
-            
-              -- 强制重新计算布局
-              vertical_group:resetLayout()
-                  end
-              end
+            vertical_group:resetLayout()
+        end
+    end
     
     local has_prev = (total_pages > 1 and current_page > 1)
     local has_next = (total_pages > 1 and current_page < total_pages)
     
-    -- 绑定拼音按键（第一个按钮）
     if new_row_widgets[1] then
-        -- 单击：清空拼音
         new_row_widgets[1].callback = function() clearPinyin() end
-        -- 长按：直接输入拼音并清空
         new_row_widgets[1].hold_callback = function() commitPinyinText() end
     end
     
-    -- 绑定上一页按钮
     if new_row_widgets[2] then
         if has_prev then
             new_row_widgets[2].callback = function()
@@ -701,7 +717,6 @@ function rebuildFirstRow()
         end
     end
     
-    -- 绑定下一页按钮
     local last_idx = #new_row_widgets
     if new_row_widgets[last_idx] then
         if has_next then
@@ -718,7 +733,6 @@ function rebuildFirstRow()
         end
     end
     
-    -- 绑定候选词按钮
     if current_candidates and #current_candidates > 0 and current_candidates[current_page] then
         local candidates = current_candidates[current_page].candidates
         for i = 1, #candidates do
@@ -737,8 +751,208 @@ function rebuildFirstRow()
     end)
 end
 
+-- 固定宽度模式：更新虚拟按键文本、字体和背景色
+local function updateVirtualKeyText(key, text, font_size, bg_color)
+    if not key then
+        return false
+    end
+    
+    key.label = text
+    
+    if key[1] and key[1][1] and key[1][1][1] then
+        local text_widget = key[1][1][1]
+        
+        if text_widget.setText then
+            text_widget:setText(text)
+        else
+        end
+        
+        if font_size then
+            local new_face = Font:getFace("infont", font_size)
+            if text_widget.setFace then
+                text_widget:setFace(new_face)
+            else
+                text_widget.face = new_face
+            end
+            key.face = new_face
+        end
+        
+        -- 更新背景色
+        if bg_color and key[1] then
+            key[1].background = bg_color
+        end
+        
+        return true
+    else
+        if key[1] then
+            if key[1][1] then
+            end
+        end
+    end
+    
+    return false
+end
+
+-- 固定宽度模式：保存按键引用
+local function saveCandidateKeyReferences(keyboard)
+    if not keyboard or not keyboard.layout or not keyboard.layout[1] then
+        return false
+    end
+    
+    local candidate_row_widgets = keyboard.layout[1]
+    if not candidate_row_widgets or #candidate_row_widgets < 10 then
+        return false
+    end
+    
+    pinyin_key = candidate_row_widgets[1]
+    prev_page_key = candidate_row_widgets[2]
+    for i = 1, 7 do
+        candidate_key_refs[i] = candidate_row_widgets[2 + i]
+    end
+    next_page_key = candidate_row_widgets[10]
+    
+    return true
+end
+
+-- 固定宽度模式：更新候选栏按键显示
+local function updateCandidateKeysFixed()
+    if not pinyin_key then
+        return
+    end
+    
+    local bg_color = getCandidateBarBgColor()
+    
+    if not pinyin_enabled then
+        updateVirtualKeyText(pinyin_key, "[]", nil, bg_color)
+        updateVirtualKeyText(prev_page_key, " ", nil, bg_color)
+        updateVirtualKeyText(next_page_key, " ", nil, bg_color)
+        for i = 1, 7 do
+            if candidate_key_refs[i] then
+                updateVirtualKeyText(candidate_key_refs[i], "", nil, bg_color)
+            end
+        end
+        return
+    end
+    
+    -- 更新拼音显示
+    local pinyin_text = "[]"
+    if current_pinyin ~= "" then
+        pinyin_text = "[" .. current_pinyin .. "]"
+    end
+    local max_width = pinyin_key.width - 2*pinyin_key.bordersize - 2*Size.padding.small
+    local pinyin_font_size = getAdjustedFontSizeForText(pinyin_text, max_width, 22)
+    updateVirtualKeyText(pinyin_key, pinyin_text, pinyin_font_size, bg_color)
+    
+    pinyin_key.callback = function()
+        clearPinyin()
+    end
+    pinyin_key.hold_callback = function()
+        commitPinyinText()
+    end
+    
+    -- 更新上一页
+    if total_pages > 1 then
+        updateVirtualKeyText(prev_page_key, "◀", nil, bg_color)
+        prev_page_key.callback = function()
+            if current_page > 1 then
+                current_page = current_page - 1
+                updateCandidates()
+                updateCandidateKeysFixed()
+                if current_keyboard then
+                    UIManager:setDirty(current_keyboard, function()
+                        return "ui", current_keyboard.dimen
+                    end)
+                end
+            end
+        end
+    else
+        updateVirtualKeyText(prev_page_key, " ", nil, bg_color)
+        prev_page_key.callback = nil
+    end
+    
+    -- 更新候选词
+    local page_candidates = {}
+    if current_candidates and #current_candidates > 0 and current_candidates[current_page] then
+        page_candidates = current_candidates[current_page].candidates
+    end
+    
+    for i = 1, 7 do
+        local key = candidate_key_refs[i]
+        if key then
+            local cand = page_candidates and page_candidates[i]
+            if cand then
+                local max_width = key.width - 2*key.bordersize - 2*Size.padding.small
+                local font_size = getAdjustedFontSizeForText(cand, max_width, 22)
+                updateVirtualKeyText(key, cand, font_size, bg_color)
+                key.callback = function()
+                    commitCandidate(cand)
+                end
+            else
+                updateVirtualKeyText(key, "", nil, bg_color)
+                key.callback = nil
+            end
+        end
+    end
+    
+    -- 更新下一页
+    if total_pages > 1 and current_page < total_pages then
+        updateVirtualKeyText(next_page_key, "▶", nil, bg_color)
+        next_page_key.callback = function()
+            if current_page < total_pages then
+                current_page = current_page + 1
+                updateCandidates()
+                updateCandidateKeysFixed()
+                if current_keyboard then
+                    UIManager:setDirty(current_keyboard, function()
+                        return "ui", current_keyboard.dimen
+                    end)
+                end
+            end
+        end
+    else
+        updateVirtualKeyText(next_page_key, " ", nil, bg_color)
+        next_page_key.callback = nil
+    end
+    
+    if current_keyboard then
+        UIManager:setDirty(current_keyboard, function()
+            return "ui", current_keyboard.dimen
+        end)
+    end
+end
+
+-- 固定宽度模式：重建第一行
+local function rebuildFirstRowFixed()
+    if not pinyin_key then
+        if current_keyboard then
+            saveCandidateKeyReferences(current_keyboard)
+        end
+    end
+    updateCandidateKeysFixed()
+end
+
+-- 重建第一行（根据模式选择）
+function rebuildFirstRow()
+    if not current_keyboard then
+        return
+    end
+    
+    if not pinyin_enabled then
+        return
+    end
+    
+    updateCandidates()
+    
+    if key_width_mode == "fixed" then
+        rebuildFirstRowFixed()
+    else
+        rebuildFirstRowDynamic()
+    end
+end
+
 -- 处理字母输入
 local function handleAddChar(key)
+    
     if not key then
         return false
     end
@@ -753,28 +967,18 @@ local function handleAddChar(key)
     
     local key_char = key
     if type(key) == "table" then
-        if key.key and type(key.key) == "string" then
+        if key.key then
             key_char = key.key
-        elseif key.label and type(key.label) == "string" then
+        elseif key.label then
             key_char = key.label
         else
             return false
         end
     end
     
-    if type(key_char) ~= "string" then
-        return false
-    end
     
-    -- 取第一个字符
-    key_char = key_char:sub(1, 1)
-    
-    -- 判断是否为字母
-    local lower_char = key_char:lower()
-    if (lower_char >= "a" and lower_char <= "z") then
-        -- 判断是否为大写字母
+    if (key_char >= "a" and key_char <= "z") or (key_char >= "A" and key_char <= "Z") then
         if key_char >= "A" and key_char <= "Z" then
-            -- 大写字母直接上屏
             local inputbox = current_inputbox
             if not inputbox and current_ime then
                 inputbox = current_ime._inputbox or current_ime.inputbox
@@ -784,11 +988,19 @@ local function handleAddChar(key)
             end
             if inputbox and inputbox.addChars then
                 inputbox:addChars(key_char)
+            else
             end
+            current_pinyin = ""
+            current_candidates = nil
+            current_page = 1
+            total_pages = 1
+            rebuildFirstRow()
             return true
         else
-            -- 小写字母作为拼音
             current_pinyin = current_pinyin .. key_char
+if key_width_mode == "fixed" then
+    saveCandidateKeyReferences(current_keyboard)  -- 重新获取引用
+end
             rebuildFirstRow()
             return true
         end
@@ -877,7 +1089,7 @@ local function hookVirtualKeyboard()
     
     VirtualKeyboard.setKeyboardLayout = function(self, layout)
         originalSetKeyboardLayout(self, layout)
-        if layout == "zh_CN" then
+        if layout == "zh_CN" or layout == "zh" then
             enablePinyinFeatures()
         else
             disablePinyinFeatures()
@@ -887,6 +1099,8 @@ local function hookVirtualKeyboard()
     VirtualKeyboard.init = function(self, ...)
         originalInit(self, ...)
         current_keyboard = self
+        
+        updateKeyWidthMode()
         
         current_pinyin = ""
         current_candidates = nil
@@ -900,8 +1114,12 @@ local function hookVirtualKeyboard()
             end
         end
         
+        if key_width_mode == "fixed" then
+            saveCandidateKeyReferences(self)
+        end
+        
         local current_layout = self:getKeyboardLayout()
-        if current_layout == "zh_CN" then
+        if current_layout == "zh_CN" or current_layout == "zh" then
             enablePinyinFeatures()
         else
             disablePinyinFeatures()
@@ -909,6 +1127,7 @@ local function hookVirtualKeyboard()
     end
     
     class_hooked = true
+    logger.info("[CANDIDATE_BAR] 补丁安装完成，宽度模式: " .. key_width_mode)
     return true
 end
 
@@ -919,9 +1138,8 @@ local function applyPatch()
     
     if hookVirtualKeyboard() then
         patched = true
-        logger.info("[CANDIDATE_BAR] 补丁安装完成")
     end
 end
 
-UIManager:scheduleIn(0.2, applyPatch)
+UIManager:scheduleIn(0.5, applyPatch)
 return true

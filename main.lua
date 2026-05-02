@@ -4,6 +4,7 @@ local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local UIManager = require("ui/uimanager")
 local Dispatcher = require("dispatcher")
 local Notification = require("ui/widget/notification")
+local InfoMessage = require("ui/widget/infomessage")
 local _ = require("gettext")
 
 local PinyinPatch = WidgetContainer:extend{}
@@ -54,7 +55,7 @@ local function setCandidateBarBgColor(color)
     G_reader_settings:saveSetting("pinyin_candidate_bg_color", color)
 end
 
--- 获取匹配模式：exact（精确匹配）/ prefix（精确+前缀匹配）
+-- 获取匹配模式
 local function getMatchMode()
     local mode = G_reader_settings:readSetting("pinyin_match_mode")
     if mode == nil then
@@ -82,6 +83,20 @@ local function setLimitCandidates(limit)
     G_reader_settings:saveSetting("pinyin_limit_candidates", limit)
 end
 
+-- 获取键盘宽度模式
+local function getKeyWidthMode()
+    local mode = G_reader_settings:readSetting("pinyin_key_width_mode")
+    if mode == nil then
+        return "dynamic"
+    end
+    return mode
+end
+
+-- 保存键盘宽度模式
+local function setKeyWidthMode(mode)
+    G_reader_settings:saveSetting("pinyin_key_width_mode", mode)
+end
+
 -- 加载补丁（只执行一次）
 local function loadPatch()
     if patch_loaded_flag then
@@ -89,7 +104,7 @@ local function loadPatch()
     end
     patch_loaded_flag = true
     
-    UIManager:scheduleIn(0.2, function()
+    UIManager:scheduleIn(0.5, function()
         local ok, err = pcall(dofile, "plugins/pinyin_enhancement.koplugin/candidate_bar.lua")
         if not ok then
             print("拼音补丁加载失败:", err)
@@ -137,11 +152,11 @@ local function buildSettingsMenu()
                             timeout = 2,
                         })
                     else
-                        UIManager:show(require("ui/widget/infomessage"):new{
+                        UIManager:show(InfoMessage:new{
                             text = _("拼音功能已禁用，正在重启..."),
                             timeout = 2,
                         })
-                        UIManager:scheduleIn(1, function()
+                        UIManager:scheduleIn(2, function()
                             UIManager:restartKOReader()
                         end)
                     end
@@ -177,57 +192,87 @@ local function buildSettingsMenu()
                 help_text = _("设置候选栏按键的背景颜色。"),
             },
             {
-                text = _("候选词匹配模式（优先级匹配）"),
+                text = _("候选词匹配模式"),
                 sub_item_table = {
                     {
-                        text = _("精准模式-匹配到即止"),
+                        text = _("精准模式（匹配到即止）"),
                         checked_func = function() return getMatchMode() == "exact" end,
                         callback = function()
                             setMatchMode("exact")
                             UIManager:show(Notification:new{
-                                text = _("精准模式-匹配到即止"),
+                                text = _("已切换至精准模式"),
                                 timeout = 2,
                             })
                         end,
                         help_text = _("只显示精确匹配的候选词，匹配到即止。"),
                     },
                     {
-                        text = _("全面模式-匹配追加"),
+                        text = _("全面模式（匹配追加）"),
                         checked_func = function() return getMatchMode() == "prefix" end,
                         callback = function()
                             setMatchMode("prefix")
                             UIManager:show(Notification:new{
-                                text = _("全面模式-匹配追加"),
+                                text = _("已切换至全面模式"),
                                 timeout = 2,
                             })
                         end,
                         help_text = _("显示精确匹配的候选词，并继续追加前缀匹配的候选词。"),
                     },
                 },
-                help_text = _("选择候选词的匹配方式。默认为按照精确匹配-前缀匹配的优先级别进行查找，若精确匹配查找不到，仍旧会进行前缀匹配。若精确匹配已找到，则停止匹配。若要同时显示精确匹配及前缀匹配的结果，需要开启全面模式-匹配追加"),
+                help_text = _("选择候选词的匹配方式。"),
             },
             {
-                text = _("候选词数量限制（56个）"),
+                text = _("候选词数量限制"),
                 checked_func = function() return getLimitCandidates() end,
                 callback = function()
                     local current = getLimitCandidates()
                     setLimitCandidates(not current)
-                    if not current then
-                        UIManager:show(Notification:new{
-                            text = _("候选词数量限制已开启（最多56个）"),
-                            timeout = 2,
-                        })
-                    else
+                    if current then
                         UIManager:show(Notification:new{
                             text = _("候选词数量限制已关闭（可能影响性能）"),
                             timeout = 2,
                         })
+                    else
+                        UIManager:show(Notification:new{
+                            text = _("候选词数量限制已开启（最多56个）"),
+                            timeout = 2,
+                        })
                     end
                 end,
-                help_text = _("开启后最多显示56个候选词，关闭后显示所有匹配结果（可能影响性能）。"),
+                help_text = _("开启后最多显示56个候选词，关闭后显示所有匹配结果。"),
             },
             {
-                text = _("候选词标准宽度倍数"),
+                text = _("候选栏按键宽度模式"),
+                sub_item_table = {
+                    {
+                        text = _("动态键宽（文字大小固定）"),
+                        checked_func = function() return getKeyWidthMode() == "dynamic" end,
+                        callback = function()
+                            setKeyWidthMode("dynamic")
+                            UIManager:show(Notification:new{
+                                text = _("已切换至动态键宽模式"),
+                                timeout = 2,
+                            })
+                        end,
+                        help_text = _("按键宽度根据文字长度变化，文字大小固定。"),
+                    },
+                    {
+                        text = _("固定键宽（文字自动缩小）"),
+                        checked_func = function() return getKeyWidthMode() == "fixed" end,
+                        callback = function()
+                            setKeyWidthMode("fixed")
+                            UIManager:show(Notification:new{
+                                text = _("已切换至固定键宽模式"),
+                                timeout = 2,
+                            })
+                        end,
+                        help_text = _("所有按键宽度相同，长文字自动缩小字体。"),
+                    },
+                },
+                help_text = _("选择候选栏按键的宽度模式。"),
+            },
+            {
+                text = _("候选词动态键宽倍数"),
                 sub_item_table = {
                     {
                         text = _("0.5 倍"),
@@ -235,7 +280,7 @@ local function buildSettingsMenu()
                         callback = function()
                             setCandidateWidthMultiplier(0.5)
                             UIManager:show(Notification:new{
-                                text = _("候选词宽度已设为 0.5 倍"),
+                                text = _("候选词动态键宽已设为 0.5 倍"),
                                 timeout = 2,
                             })
                         end,
@@ -246,7 +291,7 @@ local function buildSettingsMenu()
                         callback = function()
                             setCandidateWidthMultiplier(0.6)
                             UIManager:show(Notification:new{
-                                text = _("候选词宽度已设为 0.6 倍"),
+                                text = _("候选词动态键宽已设为 0.6 倍"),
                                 timeout = 2,
                             })
                         end,
@@ -257,7 +302,7 @@ local function buildSettingsMenu()
                         callback = function()
                             setCandidateWidthMultiplier(0.7)
                             UIManager:show(Notification:new{
-                                text = _("候选词宽度已设为 0.7 倍"),
+                                text = _("候选词动态键宽已设为 0.7 倍"),
                                 timeout = 2,
                             })
                         end,
@@ -268,7 +313,7 @@ local function buildSettingsMenu()
                         callback = function()
                             setCandidateWidthMultiplier(0.8)
                             UIManager:show(Notification:new{
-                                text = _("候选词宽度已设为 0.8 倍"),
+                                text = _("候选词动态键宽已设为 0.8 倍"),
                                 timeout = 2,
                             })
                         end,
@@ -279,7 +324,7 @@ local function buildSettingsMenu()
                         callback = function()
                             setCandidateWidthMultiplier(0.9)
                             UIManager:show(Notification:new{
-                                text = _("候选词宽度已设为 0.9 倍"),
+                                text = _("候选词动态键宽已设为 0.9 倍"),
                                 timeout = 2,
                             })
                         end,
@@ -290,13 +335,13 @@ local function buildSettingsMenu()
                         callback = function()
                             setCandidateWidthMultiplier(1.0)
                             UIManager:show(Notification:new{
-                                text = _("候选词宽度已设为 1.0 倍"),
+                                text = _("候选词动态键宽已设为 1.0 倍"),
                                 timeout = 2,
                             })
                         end,
                     },
                 },
-                help_text = _("调整候选词的标准宽度倍数，越小每页可显示越多候选词。"),
+                help_text = _("调整候选词的动态键宽倍数，越小每页可显示越多候选词。"),
             },
             {
                 text = _("检查更新"),
@@ -378,11 +423,11 @@ function PinyinPatch:onPinyinEnhancementToggleReader()
             timeout = 2,
         })
     else
-        UIManager:show(require("ui/widget/infomessage"):new{
+        UIManager:show(InfoMessage:new{
             text = _("拼音功能已禁用，正在重启..."),
             timeout = 2,
         })
-        UIManager:scheduleIn(1, function()
+        UIManager:scheduleIn(2, function()
             UIManager:restartKOReader()
         end)
     end
@@ -399,11 +444,11 @@ function PinyinPatch:onPinyinEnhancementToggleFileManager()
             timeout = 2,
         })
     else
-        UIManager:show(require("ui/widget/infomessage"):new{
+        UIManager:show(InfoMessage:new{
             text = _("拼音功能已禁用，正在重启..."),
             timeout = 2,
         })
-        UIManager:scheduleIn(1, function()
+        UIManager:scheduleIn(2, function()
             UIManager:restartKOReader()
         end)
     end

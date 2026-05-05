@@ -105,7 +105,9 @@ local function loadPatch()
     patch_loaded_flag = true
     
     UIManager:scheduleIn(0.5, function()
-        local ok, err = pcall(dofile, "plugins/pinyin_enhancement.koplugin/candidate_bar.lua")
+        local DataStorage = require("datastorage")
+        local path = DataStorage:getFullDataDir()
+        local ok, err = pcall(dofile, path .. "/plugins/pinyin_enhancement.koplugin/candidate_bar.lua")
         if not ok then
             print("拼音补丁加载失败:", err)
         end

@@ -56,6 +56,9 @@ local pinyin_key = nil
 local prev_page_key = nil
 local next_page_key = nil
 
+-- 当前高亮的候选词索引
+local current_highlight_index = 1
+
 -- 获取候选词标准宽度倍数配置
 local function getCandidateWidthMultiplier()
     local mult = G_reader_settings:readSetting("pinyin_candidate_width_multiplier")
@@ -69,7 +72,7 @@ end
 local function getSpaceCommit()
     local enabled = G_reader_settings:readSetting("pinyin_space_commit")
     if enabled == nil then
-        return true  -- 默认开启
+        return true
     end
     return enabled
 end
@@ -109,6 +112,15 @@ local function getKeyWidthMode()
         return "dynamic"
     end
     return mode
+end
+
+-- 获取是否启用方向键选择候选词
+local function getArrowSelect()
+    local enabled = G_reader_settings:readSetting("pinyin_arrow_select")
+    if enabled == nil then
+        return false
+    end
+    return enabled
 end
 
 -- 更新键盘宽度模式
@@ -442,6 +454,7 @@ local function updateCandidates()
     end
     
     local multiplier = getCandidateWidthMultiplier()
+    local candidates_list = nil
     local pages = {}
     
     if key_width_mode == "fixed" then
@@ -569,6 +582,79 @@ local function addCandidateRowToKeyboardLayout()
     return true
 end
 
+-- 获取高亮颜色
+local function getHighlightColor()
+    local bg_color = getCandidateBarBgColor()
+    if bg_color == Blitbuffer.COLOR_WHITE then
+        return Blitbuffer.COLOR_LIGHT_GRAY
+    else
+        return Blitbuffer.COLOR_GRAY
+    end
+end
+
+-- 清除所有候选词的高亮
+local function clearAllHighlights()
+    local bg_color = getCandidateBarBgColor()
+    
+    if key_width_mode == "fixed" then
+        for i = 1, 7 do
+            local key = candidate_key_refs[i]
+            if key and key[1] then
+                key[1].background = bg_color
+            end
+        end
+        if current_keyboard then
+            UIManager:setDirty(current_keyboard, function()
+                return "ui", current_keyboard.dimen
+            end)
+        end
+    else
+        -- 动态模式
+        if current_keyboard and current_keyboard.layout and current_keyboard.layout[1] then
+            local row_widgets = current_keyboard.layout[1]
+            for i = 1, 7 do
+                local key_pos = 2 * i + 3
+                local key = row_widgets[key_pos]
+                if key and key[1] then
+                    key[1].background = bg_color
+                end
+            end
+            if current_keyboard then
+                UIManager:setDirty(current_keyboard, function()
+                    return "ui", current_keyboard.dimen
+                end)
+            end
+        end
+    end
+end
+
+-- 高亮指定的候选词
+-- 高亮指定的候选词
+local function highlightCandidate(index)
+    clearAllHighlights()
+    if key_width_mode == "fixed" then
+        local key = candidate_key_refs[index]
+        if key and key[1] then
+            key[1].background = getHighlightColor()
+            if current_keyboard then
+                UIManager:setDirty(current_keyboard, function()
+                    return "ui", current_keyboard.dimen
+                end)
+            end
+        end
+    else
+        -- 动态模式：只修改背景色，不刷新（由调用方负责刷新）
+        if current_keyboard and current_keyboard.layout and current_keyboard.layout[1] then
+            local row_widgets = current_keyboard.layout[1]
+            local key_pos = 2 * index + 3
+            local key = row_widgets[key_pos]
+            if key and key[1] then
+                key[1].background = getHighlightColor()
+            end
+        end
+    end
+end
+
 -- 动态宽度模式：重建第一行
 local function rebuildFirstRowDynamic()
     local key_padding = current_keyboard.key_padding
@@ -591,6 +677,7 @@ local function rebuildFirstRowDynamic()
     local base_key_height = original_key_height
     local base_key_width = math.floor((current_keyboard.width - (10 + 1) * key_padding - 2 * padding) / 10)
     local multiplier = getCandidateWidthMultiplier()
+    local candidates_list = nil 
     local min_key_width = base_key_width * MIN_WIDTH_RATIO
     
     local row = {}
@@ -606,6 +693,7 @@ local function rebuildFirstRowDynamic()
     if current_candidates and #current_candidates > 0 and current_candidates[current_page] then
         local page_data = current_candidates[current_page]
         local candidates = page_data.candidates
+        candidates_list = candidates
         
         for _, cand in ipairs(candidates) do
             local word_width = getWordWidth(cand) * multiplier
@@ -634,6 +722,7 @@ local function rebuildFirstRowDynamic()
             end
             idx = idx + 1
         end
+
     else
         for i = 1, CANDIDATE_STD_WIDTH do
             row[idx] = { label = "", width = base_key_width }
@@ -694,6 +783,14 @@ local function rebuildFirstRowDynamic()
     
     current_keyboard.layout[1] = horizontal_group
     
+    -- 重置高亮（移到此处）
+    if getArrowSelect() then
+        current_highlight_index = 1
+        if candidates_list and #candidates_list > 0 then
+            highlightCandidate(1)
+        end
+    end
+
     local keyboard_frame = current_keyboard[1] and current_keyboard[1][1]
     if keyboard_frame and keyboard_frame[1] and keyboard_frame[1][1] then
         local vertical_group = keyboard_frame[1][1]
@@ -773,7 +870,6 @@ local function updateVirtualKeyText(key, text, font_size, bg_color)
         
         if text_widget.setText then
             text_widget:setText(text)
-        else
         end
         
         if font_size then
@@ -786,17 +882,11 @@ local function updateVirtualKeyText(key, text, font_size, bg_color)
             key.face = new_face
         end
         
-        -- 更新背景色
         if bg_color and key[1] then
             key[1].background = bg_color
         end
         
         return true
-    else
-        if key[1] then
-            if key[1][1] then
-            end
-        end
     end
     
     return false
@@ -825,6 +915,11 @@ end
 
 -- 固定宽度模式：更新候选栏按键显示
 local function updateCandidateKeysFixed()
+    -- 每次都重新获取按键引用
+    if current_keyboard then
+        saveCandidateKeyReferences(current_keyboard)
+    end
+    
     if not pinyin_key then
         return
     end
@@ -833,12 +928,19 @@ local function updateCandidateKeysFixed()
     
     if not pinyin_enabled then
         updateVirtualKeyText(pinyin_key, "[]", nil, bg_color)
-        updateVirtualKeyText(prev_page_key, " ", nil, bg_color)
-        updateVirtualKeyText(next_page_key, " ", nil, bg_color)
+        updateVirtualKeyText(prev_page_key, "◀", nil, bg_color)
+        updateVirtualKeyText(next_page_key, "▶", nil, bg_color)
         for i = 1, 7 do
             if candidate_key_refs[i] then
                 updateVirtualKeyText(candidate_key_refs[i], "", nil, bg_color)
             end
+        end
+        -- 设置左右箭头为灰色
+        if prev_page_key and prev_page_key[1] and prev_page_key[1][1] and prev_page_key[1][1][1] then
+            prev_page_key[1][1][1].fgcolor = Blitbuffer.COLOR_DARK_GRAY
+        end
+        if next_page_key and next_page_key[1] and next_page_key[1][1] and next_page_key[1][1][1] then
+            next_page_key[1][1][1].fgcolor = Blitbuffer.COLOR_DARK_GRAY
         end
         return
     end
@@ -860,7 +962,7 @@ local function updateCandidateKeysFixed()
     end
     
     -- 更新上一页
-    if total_pages > 1 then
+    if total_pages > 1 and current_page > 1 then
         updateVirtualKeyText(prev_page_key, "◀", nil, bg_color)
         prev_page_key.callback = function()
             if current_page > 1 then
@@ -874,9 +976,15 @@ local function updateCandidateKeysFixed()
                 end
             end
         end
+        if prev_page_key[1] and prev_page_key[1][1] and prev_page_key[1][1][1] then
+            prev_page_key[1][1][1].fgcolor = Blitbuffer.COLOR_BLACK
+        end
     else
-        updateVirtualKeyText(prev_page_key, " ", nil, bg_color)
+        updateVirtualKeyText(prev_page_key, "◀", nil, bg_color)
         prev_page_key.callback = nil
+        if prev_page_key[1] and prev_page_key[1][1] and prev_page_key[1][1][1] then
+            prev_page_key[1][1][1].fgcolor = Blitbuffer.COLOR_DARK_GRAY
+        end
     end
     
     -- 更新候选词
@@ -903,6 +1011,14 @@ local function updateCandidateKeysFixed()
         end
     end
     
+    -- 重置高亮
+    if getArrowSelect() then
+        current_highlight_index = 1
+        if page_candidates and #page_candidates > 0 then
+            highlightCandidate(1)
+        end
+    end
+    
     -- 更新下一页
     if total_pages > 1 and current_page < total_pages then
         updateVirtualKeyText(next_page_key, "▶", nil, bg_color)
@@ -918,9 +1034,15 @@ local function updateCandidateKeysFixed()
                 end
             end
         end
+        if next_page_key[1] and next_page_key[1][1] and next_page_key[1][1][1] then
+            next_page_key[1][1][1].fgcolor = Blitbuffer.COLOR_BLACK
+        end
     else
-        updateVirtualKeyText(next_page_key, " ", nil, bg_color)
+        updateVirtualKeyText(next_page_key, "▶", nil, bg_color)
         next_page_key.callback = nil
+        if next_page_key[1] and next_page_key[1][1] and next_page_key[1][1][1] then
+            next_page_key[1][1][1].fgcolor = Blitbuffer.COLOR_DARK_GRAY
+        end
     end
     
     if current_keyboard then
@@ -961,12 +1083,11 @@ end
 
 -- 处理字母输入
 local function handleAddChar(key)
-    
     if not key then
         return false
     end
-
-    -- 空格键处理（添加到最前面，在其他判断之前）
+    
+    -- 空格键处理
     local key_char_space = key
     if type(key) == "table" then
         if key.key then
@@ -977,7 +1098,15 @@ local function handleAddChar(key)
     end
     if key_char_space == " " then
         if getSpaceCommit() then
-            -- 优先上屏候选词第一个
+            -- 如果方向键选择功能开启，上屏高亮的候选词
+            if getArrowSelect() and current_candidates and #current_candidates > 0 and current_candidates[current_page] then
+                local candidates = current_candidates[current_page].candidates
+                if candidates and #candidates >= current_highlight_index then
+                    commitCandidate(candidates[current_highlight_index])
+                    return true
+                end
+            end
+            -- 否则上屏第一个候选词
             if current_candidates and #current_candidates > 0 and current_candidates[current_page] then
                 local candidates = current_candidates[current_page].candidates
                 if candidates and #candidates > 0 then
@@ -985,13 +1114,11 @@ local function handleAddChar(key)
                     return true
                 end
             end
-            -- 其次上屏拼音
             if current_pinyin ~= "" then
                 commitPinyinText()
                 return true
             end
         end
-        -- 无内容或功能关闭，返回 false 让原始空格功能执行
         return false
     end
     
@@ -1014,7 +1141,6 @@ local function handleAddChar(key)
         end
     end
     
-    
     if (key_char >= "a" and key_char <= "z") or (key_char >= "A" and key_char <= "Z") then
         if key_char >= "A" and key_char <= "Z" then
             local inputbox = current_inputbox
@@ -1026,19 +1152,18 @@ local function handleAddChar(key)
             end
             if inputbox and inputbox.addChars then
                 inputbox:addChars(key_char)
-            else
             end
             current_pinyin = ""
             current_candidates = nil
             current_page = 1
             total_pages = 1
+            if key_width_mode == "fixed" then
+                saveCandidateKeyReferences(current_keyboard)
+            end
             rebuildFirstRow()
             return true
         else
             current_pinyin = current_pinyin .. key_char
-if key_width_mode == "fixed" then
-    saveCandidateKeyReferences(current_keyboard)  -- 重新获取引用
-end
             rebuildFirstRow()
             return true
         end
@@ -1127,7 +1252,7 @@ local function hookVirtualKeyboard()
     
     VirtualKeyboard.setKeyboardLayout = function(self, layout)
         originalSetKeyboardLayout(self, layout)
-        if layout == "zh_CN"  then
+        if layout == "zh_CN" then
             enablePinyinFeatures()
         else
             disablePinyinFeatures()
@@ -1160,7 +1285,7 @@ local function hookVirtualKeyboard()
         if current_layout == "zh_CN" then
             enablePinyinFeatures()
             
-            -- 中文键盘：设置空格键长按上屏拼音（仅当功能开启时）
+            -- 中文键盘：设置空格键长按上屏拼音
             if getSpaceCommit() then
                 for _, row in ipairs(self.layout) do
                     for _, key in ipairs(row) do
@@ -1172,6 +1297,60 @@ local function hookVirtualKeyboard()
                             end
                             break
                         end
+                    end
+                end
+            end
+            
+            -- 添加：替换左右箭头回调（方向键选择功能）
+            if getArrowSelect() then
+                -- 确保按键引用是最新的
+                saveCandidateKeyReferences(self)
+                for _, row in ipairs(self.layout) do
+                    for _, key in ipairs(row) do
+                        if key.label == "←" then
+                        local original_callback = key.callback
+                        key.callback = function()
+                            if pinyin_enabled and current_candidates and #current_candidates > 0 then
+                                if current_highlight_index > 1 then
+                                    current_highlight_index = current_highlight_index - 1
+                                    highlightCandidate(current_highlight_index)
+                                else
+                                    -- 已在第一个，执行上一页
+                                    if current_page > 1 then
+                                        current_page = current_page - 1
+                                        updateCandidates()
+                                        rebuildFirstRow()
+                                    end
+                                end
+                            else
+                                if original_callback then
+                                    original_callback()
+                                end
+                            end
+                        end
+                    elseif key.label == "→" then
+                        local original_callback = key.callback
+                        key.callback = function()
+                            if pinyin_enabled and current_candidates and #current_candidates > 0 then
+                                local candidates = current_candidates[current_page].candidates
+                                if candidates and current_highlight_index < #candidates then
+                                    current_highlight_index = current_highlight_index + 1
+                                    highlightCandidate(current_highlight_index)
+                                else
+                                    -- 已在最后一个，执行下一页
+                                    if current_page < total_pages then
+                                        current_page = current_page + 1
+                                        updateCandidates()
+                                        rebuildFirstRow()
+                                    end
+                                end
+                            else
+                                if original_callback then
+                                    original_callback()
+                                end
+                            end
+                        end
+                      end
                     end
                 end
             end

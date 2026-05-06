@@ -111,6 +111,20 @@ local function setSpaceCommit(enabled)
     G_reader_settings:saveSetting("pinyin_space_commit", enabled)
 end
 
+-- 获取是否启用方向键选择候选词
+local function getArrowSelect()
+    local enabled = G_reader_settings:readSetting("pinyin_arrow_select")
+    if enabled == nil then
+        return false
+    end
+    return enabled
+end
+
+-- 保存方向键选择候选词设置
+local function setArrowSelect(enabled)
+    G_reader_settings:saveSetting("pinyin_arrow_select", enabled)
+end
+
 -- 加载补丁（只执行一次）
 local function loadPatch()
     if patch_loaded_flag then
@@ -191,6 +205,19 @@ local function buildSettingsMenu()
                     })
                 end,
                 help_text = _("开启后，点击空格键自动上屏第一个候选词；长按空格键上屏当前拼音。"),
+            },
+            {
+                text = _("方向键切换候选词"),
+                checked_func = function() return getArrowSelect() end,
+                callback = function()
+                    local current = getArrowSelect()
+                    setArrowSelect(not current)
+                    UIManager:show(Notification:new{
+                        text = current and _("方向键选择已关闭") or _("方向键选择已开启"),
+                        timeout = 2,
+                    })
+                end,
+                help_text = _("开启后，左右箭头键切换候选词，空格键上屏。"),
             },
             {
                 text = _("候选栏按键背景色"),

@@ -65,6 +65,15 @@ local function getCandidateWidthMultiplier()
     return mult
 end
 
+-- 获取是否启用空格键上屏
+local function getSpaceCommit()
+    local enabled = G_reader_settings:readSetting("pinyin_space_commit")
+    if enabled == nil then
+        return true  -- 默认开启
+    end
+    return enabled
+end
+
 -- 获取候选栏按键背景色
 local function getCandidateBarBgColor()
     local color = G_reader_settings:readSetting("pinyin_candidate_bg_color")
@@ -956,6 +965,35 @@ local function handleAddChar(key)
     if not key then
         return false
     end
+
+    -- 空格键处理（添加到最前面，在其他判断之前）
+    local key_char_space = key
+    if type(key) == "table" then
+        if key.key then
+            key_char_space = key.key
+        elseif key.label then
+            key_char_space = key.label
+        end
+    end
+    if key_char_space == " " then
+        if getSpaceCommit() then
+            -- 优先上屏候选词第一个
+            if current_candidates and #current_candidates > 0 and current_candidates[current_page] then
+                local candidates = current_candidates[current_page].candidates
+                if candidates and #candidates > 0 then
+                    commitCandidate(candidates[1])
+                    return true
+                end
+            end
+            -- 其次上屏拼音
+            if current_pinyin ~= "" then
+                commitPinyinText()
+                return true
+            end
+        end
+        -- 无内容或功能关闭，返回 false 让原始空格功能执行
+        return false
+    end
     
     if not pinyin_enabled then
         return false
@@ -1089,7 +1127,7 @@ local function hookVirtualKeyboard()
     
     VirtualKeyboard.setKeyboardLayout = function(self, layout)
         originalSetKeyboardLayout(self, layout)
-        if layout == "zh_CN" or layout == "zh" then
+        if layout == "zh_CN"  then
             enablePinyinFeatures()
         else
             disablePinyinFeatures()
@@ -1119,8 +1157,24 @@ local function hookVirtualKeyboard()
         end
         
         local current_layout = self:getKeyboardLayout()
-        if current_layout == "zh_CN" or current_layout == "zh" then
+        if current_layout == "zh_CN" then
             enablePinyinFeatures()
+            
+            -- 中文键盘：设置空格键长按上屏拼音（仅当功能开启时）
+            if getSpaceCommit() then
+                for _, row in ipairs(self.layout) do
+                    for _, key in ipairs(row) do
+                        if key.label == " " or (key.key and key.key == " ") then
+                            key.hold_callback = function()
+                                if current_pinyin ~= "" then
+                                    commitPinyinText()
+                                end
+                            end
+                            break
+                        end
+                    end
+                end
+            end
         else
             disablePinyinFeatures()
         end

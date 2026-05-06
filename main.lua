@@ -97,6 +97,20 @@ local function setKeyWidthMode(mode)
     G_reader_settings:saveSetting("pinyin_key_width_mode", mode)
 end
 
+-- 获取是否启用空格键上屏
+local function getSpaceCommit()
+    local enabled = G_reader_settings:readSetting("pinyin_space_commit")
+    if enabled == nil then
+        return true
+    end
+    return enabled
+end
+
+-- 保存空格键上屏设置
+local function setSpaceCommit(enabled)
+    G_reader_settings:saveSetting("pinyin_space_commit", enabled)
+end
+
 -- 加载补丁（只执行一次）
 local function loadPatch()
     if patch_loaded_flag then
@@ -105,9 +119,9 @@ local function loadPatch()
     patch_loaded_flag = true
     
     UIManager:scheduleIn(0.5, function()
-        local DataStorage = require("datastorage")
-        local path = DataStorage:getFullDataDir()
-        local ok, err = pcall(dofile, path .. "/plugins/pinyin_enhancement.koplugin/candidate_bar.lua")
+       local DataStorage = require("datastorage")
+       local path = DataStorage:getFullDataDir()
+       local ok, err = pcall(dofile, path .. "/plugins/pinyin_enhancement.koplugin/candidate_bar.lua")
         if not ok then
             print("拼音补丁加载失败:", err)
         end
@@ -164,6 +178,19 @@ local function buildSettingsMenu()
                     end
                 end,
                 help_text = _("启用后，在中文输入法下输入拼音时会显示候选词栏。"),
+            },
+            {
+                text = _("空格键上屏首选词/拼音"),
+                checked_func = function() return getSpaceCommit() end,
+                callback = function()
+                    local current = getSpaceCommit()
+                    setSpaceCommit(not current)
+                    UIManager:show(Notification:new{
+                        text = current and _("空格键上屏已关闭") or _("空格键上屏已开启"),
+                        timeout = 2,
+                    })
+                end,
+                help_text = _("开启后，点击空格键自动上屏第一个候选词；长按空格键上屏当前拼音。"),
             },
             {
                 text = _("候选栏按键背景色"),

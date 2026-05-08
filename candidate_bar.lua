@@ -1234,6 +1234,47 @@ local function hookVirtualKeyboard()
     originalInit = VirtualKeyboard.init
     originalSetKeyboardLayout = VirtualKeyboard.setKeyboardLayout
     
+local function hookVirtualKeyboard()
+    if class_hooked then
+        return true
+    end
+    
+    loadCodeMapDirectly()
+    current_ime = findIME()
+    addCandidateRowToKeyboardLayout()
+    
+    local VirtualKeyboard = require("ui/widget/virtualkeyboard")
+    if not VirtualKeyboard then
+        return false
+    end
+    
+    originalAddChar = VirtualKeyboard.addChar
+    originalDelChar = VirtualKeyboard.delChar
+    originalInit = VirtualKeyboard.init
+    originalSetKeyboardLayout = VirtualKeyboard.setKeyboardLayout
+    
+    -- ★ 关键：Hook InputText.onShowKeyboard，每次键盘显示时更新 current_keyboard
+    local InputText = require("ui/widget/inputtext")
+    local originalOnShowKeyboard = InputText.onShowKeyboard
+    
+    InputText.onShowKeyboard = function(self, ...)
+        -- 在显示键盘前，更新 current_keyboard 为这个输入框的键盘
+        if self.keyboard then
+            current_keyboard = self.keyboard
+            current_inputbox = self
+            if current_ime then
+                current_ime._inputbox = self
+                current_ime.inputbox = self
+            end
+            
+            -- 如果有累积的拼音，刷新候选栏
+            if pinyin_enabled and current_pinyin ~= "" then
+                rebuildFirstRow()
+            end
+        end
+        return originalOnShowKeyboard(self, ...)
+    end
+
     VirtualKeyboard.addChar = function(self, key)
         if not handleAddChar(key) then
             originalAddChar(self, key)

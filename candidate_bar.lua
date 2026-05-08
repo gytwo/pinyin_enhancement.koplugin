@@ -1234,26 +1234,7 @@ local function hookVirtualKeyboard()
     originalInit = VirtualKeyboard.init
     originalSetKeyboardLayout = VirtualKeyboard.setKeyboardLayout
     
-local function hookVirtualKeyboard()
-    if class_hooked then
-        return true
-    end
-    
-    loadCodeMapDirectly()
-    current_ime = findIME()
-    addCandidateRowToKeyboardLayout()
-    
-    local VirtualKeyboard = require("ui/widget/virtualkeyboard")
-    if not VirtualKeyboard then
-        return false
-    end
-    
-    originalAddChar = VirtualKeyboard.addChar
-    originalDelChar = VirtualKeyboard.delChar
-    originalInit = VirtualKeyboard.init
-    originalSetKeyboardLayout = VirtualKeyboard.setKeyboardLayout
-    
-    -- ★ 关键：Hook InputText.onShowKeyboard，每次键盘显示时更新 current_keyboard
+        -- ★ 关键：Hook InputText.onShowKeyboard，每次键盘显示时更新 current_keyboard
     local InputText = require("ui/widget/inputtext")
     local originalOnShowKeyboard = InputText.onShowKeyboard
     

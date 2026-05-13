@@ -30,6 +30,10 @@ local current_inputbox = nil
 local current_keyboard = nil
 local code_map = nil
 local code_map_abbr = nil
+-- 词频统计相关
+local selection_history = nil
+local history_loaded = false
+local wordPinyinMap = {}
 
 local current_pinyin = ""
 local current_candidates = nil
@@ -59,6 +63,40 @@ local next_page_key = nil
 
 -- 当前高亮的候选词索引
 local current_highlight_index = 1
+
+-- 加载选择历史
+local function loadSelectionHistory()
+    if history_loaded then
+        return
+    end
+    selection_history = G_reader_settings:readSetting("pinyin_selection_history") or {}
+    history_loaded = true
+end
+
+-- 保存选择历史
+local function saveSelectionHistory()
+    if selection_history then
+        G_reader_settings:saveSetting("pinyin_selection_history", selection_history)
+    end
+end
+
+-- 记录用户选择
+local function recordSelection(word)
+    loadSelectionHistory()
+    selection_history[word] = (selection_history[word] or 0) + 1
+    saveSelectionHistory()
+end
+
+-- 按历史选择次数排序（次数高的排前面）
+local function sortByHistory(words)
+    loadSelectionHistory()
+    table.sort(words, function(a, b)
+        local ha = selection_history[a] or 0
+        local hb = selection_history[b] or 0
+        return ha > hb
+    end)
+    return words
+end
 
 -- 获取候选词标准宽度倍数配置
 local function getCandidateWidthMultiplier()
@@ -247,6 +285,11 @@ local function getRawCandidatesFromCodeMap(pinyin)
         end
     end
     
+    -- 按历史选择次数排序（常用词排前面）
+    if #result > 0 then
+        result = sortByHistory(result)
+    end
+
     -- 限制结果数量
     if limit_enabled and #result > max_results then
         local limited = {}
@@ -255,7 +298,7 @@ local function getRawCandidatesFromCodeMap(pinyin)
         end
         result = limited
     end
-    
+ 
     return result
 end
 
@@ -433,6 +476,20 @@ local function loadCodeMapDirectly()
     local ok, data = pcall(require, "ui/data/keyboardlayouts/zh_pinyin_data")
     if ok and data and type(data) == "table" then
         code_map = data
+        -- 记录每个词组的完整拼音
+        for py, words in pairs(data) do
+            if type(words) == "table" then
+                for _, word in ipairs(words) do
+                    if not wordPinyinMap[word] then
+                        wordPinyinMap[word] = py
+                    end
+                end
+            elseif type(words) == "string" then
+                if not wordPinyinMap[words] then
+                    wordPinyinMap[words] = py
+                end
+            end
+        end
         return true
     end
     return false
@@ -463,6 +520,23 @@ local function loadAllCodeMaps()
     if not ok1 and not ok2 then
         logger.warn("[CANDIDATE_BAR] 所有码表加载失败！")
         return false
+    end
+    
+    -- 记录首字母码表中词组的拼音
+    if code_map_abbr then
+        for k, v in pairs(code_map_abbr) do
+            if type(v) == "table" then
+                for _, word in ipairs(v) do
+                    if not wordPinyinMap[word] then
+                        wordPinyinMap[word] = k
+                    end
+                end
+            elseif type(v) == "string" then
+                if not wordPinyinMap[v] then
+                    wordPinyinMap[v] = k
+                end
+            end
+        end
     end
     
     -- 合并码表：将首字母码表的内容合并到拼音码表中
@@ -595,6 +669,7 @@ local function commitCandidate(candidate)
     end
     
     inputbox:addChars(candidate)
+    recordSelection(candidate) 
     
     if current_ime and current_ime.clear_stack then
         current_ime:clear_stack()
@@ -696,7 +771,6 @@ local function clearAllHighlights()
     end
 end
 
--- 高亮指定的候选词
 -- 高亮指定的候选词
 local function highlightCandidate(index)
     clearAllHighlights()

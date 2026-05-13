@@ -272,6 +272,8 @@ function M.is_newer_version(current, latest)
 end
 
 function M.download_update(download_url)
+    logger.info("PinyinEnhancement: 开始下载，URL: " .. download_url)
+    
     local zip_path
     if is_android then
         local data_dir = DataStorage:getDataDir()
@@ -288,32 +290,45 @@ function M.download_update(download_url)
     else
         zip_path = "/tmp/pinyin_enhancement.koplugin.zip"
     end
+    logger.info("PinyinEnhancement: 下载路径: " .. zip_path)
     
-    local cmd = string.format("curl -L -o '%s' '%s' 2>/dev/null", zip_path, download_url)
+    -- 尝试 curl（带 30 秒超时）
+    logger.info("PinyinEnhancement: 尝试 curl 下载...")
+    local cmd = string.format("curl -L --connect-timeout 30 --max-time 60 -o '%s' '%s' 2>/dev/null", zip_path, download_url)
     local result = os.execute(cmd)
+    logger.info("PinyinEnhancement: curl 结果: " .. tostring(result))
     
+    -- 尝试 wget（带 30 秒超时）
     if result ~= 0 then
-        cmd = string.format("wget --max-redirect=5 -O '%s' '%s' 2>/dev/null", zip_path, download_url)
+        logger.info("PinyinEnhancement: 尝试 wget 下载...")
+        cmd = string.format("wget --timeout=30 --tries=1 -O '%s' '%s' 2>/dev/null", zip_path, download_url)
         result = os.execute(cmd)
+        logger.info("PinyinEnhancement: wget 结果: " .. tostring(result))
+    end
+    
+    -- 尝试 busybox wget（带 30 秒超时）
+    if result ~= 0 then
+        logger.info("PinyinEnhancement: 尝试 busybox wget 下载...")
+        cmd = string.format("busybox wget --timeout=30 -O '%s' '%s' 2>/dev/null", zip_path, download_url)
+        result = os.execute(cmd)
+        logger.info("PinyinEnhancement: busybox wget 结果: " .. tostring(result))
     end
     
     if result ~= 0 then
-        cmd = string.format("busybox wget -O '%s' '%s' 2>/dev/null", zip_path, download_url)
-        result = os.execute(cmd)
-    end
-    
-    if result ~= 0 then
+        logger.error("PinyinEnhancement: 所有下载命令均失败")
         os.remove(zip_path)
         return nil, "下载失败"
     end
     
     local size = lfs.attributes(zip_path, "size") or 0
+    logger.info("PinyinEnhancement: 下载完成，文件大小: " .. size .. " 字节")
+    
     if size < 1000 then
+        logger.error("PinyinEnhancement: 下载的文件无效（太小）")
         os.remove(zip_path)
         return nil, "下载的文件无效"
     end
     
-    logger.info("PinyinEnhancement: 下载完成，大小: " .. size .. " 字节")
     return zip_path
 end
 

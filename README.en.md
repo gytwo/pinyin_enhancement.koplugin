@@ -22,7 +22,16 @@ After downloading and extracting, place the `pinyin_enhancement.koplugin` folder
    - **Candidate key width mode**: Dynamic width (fixed text size), Fixed width (text automatically shrinks)
    - **Candidate dynamic width multiplier**: 6 options from 0.5x to 1.0x. Adjusts candidate key width (minimum width ≥ 0.8× width of a single key in the second row).
 
-4. Candidate words are sourced from koreader's source table in `ui/data/keyboardlayouts/zh_pinyin_data`. Theoretically, replacing the source table (i.e., adding initial-letter mapping) can enable first-letter Pinyin mode.
+4. Candidate words are sourced from koreader's source table `ui/data/keyboardlayouts/zh_pinyin_data` and the custom initial Pinyin code table `zh_pinyin_data_abbr.lua`.
+
+#### Initial Pinyin Code Table Description
+
+- Generated from koreader source `ui/data/keyboardlayouts/zh_pinyin_data.lua`
+- Generation tool: `Node.js`
+- Helper module: `https://github.com/zh-lx/pinyin-pro`
+- Generation time: `2026-05-13T06:31:21.728Z`
+- Format description: `["aa"]={"啊啊"}`, `["bb"]={"爸爸","八百"}`. Mappings can be added in the same format, or the entire code table can be replaced directly.
+- Order description: Words within each group are sorted alphabetically. You can change the order of words (e.g., move commonly used words to the front).
 
 ![Pinyin-Menu](picture/拼音-菜单.png)
 ![Pinyin-FixedWidth](picture/拼音-固定键宽.png)
@@ -39,11 +48,7 @@ After downloading and extracting, place the `pinyin_enhancement.koplugin` folder
 3. Commit your code
 4. Create a new Pull Request
 
-#### Special Features
+#### Repository Links
 
-1. Use `Readme_XXX.md` to support different languages, e.g., `Readme_en.md`, `Readme_zh.md`
-2. Gitee official blog: [blog.gitee.com](https://blog.gitee.com)
-3. Explore outstanding open-source projects on Gitee: [https://gitee.com/explore](https://gitee.com/explore)
-4. [GVP](https://gitee.com/gvp) – Gitee's Most Valuable Open Source Project award
-5. Gitee official user manual: [https://gitee.com/help](https://gitee.com/help)
-6. Gitee Cover Story: [https://gitee.com/gitee-stars/](https://gitee.com/gitee-stars/)
+- Gitee : https://gitee.com/gytwo/pinyin_enhancement.koplugin
+- GitHub: https://github.com/gytwo/pinyin_enhancement.koplugin

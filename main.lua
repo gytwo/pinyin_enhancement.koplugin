@@ -400,6 +400,17 @@ local function buildSettingsMenu()
                 help_text = _("调整候选词的动态键宽倍数，越小每页可显示越多候选词。"),
             },
             {
+                text = _("清空候选词使用记录"),
+                callback = function()
+                    G_reader_settings:saveSetting("pinyin_selection_history", {})
+                    UIManager:show(Notification:new{
+                        text = _("候选词使用记录已清空，重启后生效"),
+                        timeout = 2,
+                    })
+                end,
+                help_text = _("清空所有候选词的选择次数记录，排序恢复默认。"),
+            },
+            {
                 text = _("检查更新"),
                 callback = function()
                     local update = require("pinyin_update")

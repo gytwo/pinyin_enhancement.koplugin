@@ -5,7 +5,7 @@ koreader插件-拼音输入法增强：在拼音输入法上方显示候选词�
 
 #### 安装教程
 
-下载解压后将pinyin_enhancement.koplugin文件夹放到koreader\plugins目录下
+下载解压后将`pinyin_enhancement.koplugin`文件夹放到`koreader\plugins`目录下
 
 #### 使用说明
 
@@ -20,7 +20,16 @@ koreader插件-拼音输入法增强：在拼音输入法上方显示候选词�
 -    候选词数量限制：默认56个候选词，可取消限制，但可能会影响性能速度。
 -    候选词按键宽度模式：动态键宽（文字大小固定）、固定键宽（文字自动缩小）  
 -    候选词动态键宽倍数：0.5-1共6个可选项，用于调整候选词的按键宽度（最低不小于第二行单个按键宽度的0.8倍）  
-4.  候选词来自koreader源码表ui/data/keyboardlayouts/zh_pinyin_data，理论上可以通过置换源码表（即添加首字母映射）实现首字母拼音模式
+4.  候选词来自koreader源码表`ui/data/keyboardlayouts/zh_pinyin_data`及自制首字母拼音码表`zh_pinyin_data_abbr.lua`
+
+#### 首字母拼音码表说明
+
+- 根据 koreader 源码`ui/data/keyboardlayouts/zh_pinyin_data.lua`生成
+- 生成工具：`Node.js`
+- 辅助模块：`https://github.com/zh-lx/pinyin-pro`
+- 生成时间: `2026-05-13T06:31:21.728Z`
+- 格式说明: `["aa"]={"啊啊"}`, `["bb"]={"爸爸","八百"}`，可按照相同格式增加映射，也可以直接替换掉整个码表内容
+- 顺序说明: 组内已按字母顺序排序，可以自行更改词组顺序（比如把一些比较常用的词汇放到不常用的词汇前面）
 
 ![拼音-菜单](picture/拼音-菜单.png)
 ![拼音-固定键宽](picture/拼音-固定键宽.png)
@@ -37,12 +46,7 @@ koreader插件-拼音输入法增强：在拼音输入法上方显示候选词�
 3.  提交代码
 4.  新建 Pull Request
 
+#### 项目地址
 
-#### 特技
-
-1.  使用 Readme\_XXX.md 来支持不同的语言，例如 Readme\_en.md, Readme\_zh.md
-2.  Gitee 官方博客 [blog.gitee.com](https://blog.gitee.com)
-3.  你可以 [https://gitee.com/explore](https://gitee.com/explore) 这个地址来了解 Gitee 上的优秀开源项目
-4.  [GVP](https://gitee.com/gvp) 全称是 Gitee 最有价值开源项目，是综合评定出的优秀开源项目
-5.  Gitee 官方提供的使用手册 [https://gitee.com/help](https://gitee.com/help)
-6.  Gitee 封面人物是一档用来展示 Gitee 会员风采的栏目 [https://gitee.com/gitee-stars/](https://gitee.com/gitee-stars/)
+- Gitee : https://gitee.com/gytwo/pinyin_enhancement.koplugin
+- GitHub: https://github.com/gytwo/pinyin_enhancement.koplugin

@@ -1,60 +1,60 @@
 # pinyin_enhancement.koplugin
 
-#### 介绍
+#### Description
 
-KOReader 插件 - 拼音输入法增强：在拼音输入法上方显示候选词栏，点击即可输入汉字。
+KOReader plugin - Pinyin input method enhancement: displays a candidate word bar above the pinyin input method, tap to input Chinese characters.
 
-#### 安装教程
+#### Installation Instructions
 
-下载解压后将 `pinyin_enhancement.koplugin` 文件夹放到 `koreader\plugins` 目录下。
+After downloading and extracting, place the `pinyin_enhancement.koplugin` folder into the `koreader\plugins` directory.
 
-#### 使用说明
+#### Usage Instructions
 
-1. [设置] - [拼音输入法增强] - 选择启用拼音候选词（默认启用，可关闭，支持快捷手势操作）。
-2. 候选栏左侧拼音按键会实时显示用户输入的拼音：
-   - **单击**：清空当前拼音状态
-   - **长按**：直接输入拼音并清空候选栏状态
-3. 菜单配置项目：
+1. [Settings] - [Enhanced Pinyin Input] - Enable Pinyin candidate words (enabled by default, can be disabled, supports shortcut gesture operations).
+2. The Pinyin key on the left side of the candidate bar displays the user's current Pinyin input in real time:
+   - **Tap**: Clear the current Pinyin state
+   - **Long press**: Directly input the Pinyin and clear the candidate bar state
+3. Menu Configuration Items:
 
-| 配置项 | 说明 |
-|--------|------|
-| 空格键上屏首选词/拼音 | 单击上屏首选词（无则上屏拼音，均无则空格）；长按上屏拼音 |
-| 方向键切换候选词 | 用方向键切换候选词，空格键上屏（需开启空格键上屏功能） |
-| 候选栏按键背景色 | 可选：白色、浅灰色 |
-| 候选词匹配模式 | **精准模式**（匹配到即止）；**全面模式**（匹配追加），同时显示精确匹配和前缀匹配结果 |
-| 候选词数量限制 | 默认 56 个，可取消（可能影响性能） |
-| 候选词按键宽度模式 | **动态键宽**（文字大小固定）；**固定键宽**（文字自动缩小） |
-| 候选词动态键宽倍数 | 0.5 ~ 1.0 共 6 档（最小宽度 ≥ 第二行单个按键宽度的 0.8 倍） |
-| 清空候选词记录 | 候选词默认按词频排序，使用越多越靠前。清空后重启 KOReader 恢复原始排序 |
+| Option | Description |
+|--------|-------------|
+| Space to confirm | Tap to confirm the top candidate (or Pinyin if none, or space if neither); long press to confirm the Pinyin |
+| Navigate candidates with arrow keys | Use arrow keys to switch candidates, space key to confirm (requires enabling the space key confirmation feature) |
+| Candidate bar key background color | Options: White, Light gray |
+| Candidate matching mode | **Precise mode** (stop on match); **Comprehensive mode** (match and append) - displays both exact and prefix match results together |
+| Candidate word limit | Default 56 candidates, can be disabled (may affect performance) |
+| Candidate key width mode | **Dynamic width** (fixed text size); **Fixed width** (text automatically shrinks) |
+| Candidate dynamic width multiplier | 6 options from 0.5x to 1.0x (minimum width ≥ 0.8× width of a single key in the second row) |
+| Clear candidate word history | Candidates are sorted by frequency by default (more frequent = higher). Clear history and restart KOReader to restore original sorting |
 
-4. 候选词来源：
-   - KOReader 源码表：`ui/data/keyboardlayouts/zh_pinyin_data.lua`
-   - 自制首字母拼音码表：`zh_pinyin_data_abbr.lua`
+4. Candidate word sources:
+   - KOReader source table: `ui/data/keyboardlayouts/zh_pinyin_data.lua`
+   - Custom initial Pinyin code table: `zh_pinyin_data_abbr.lua`
 
-#### 首字母拼音码表说明
+#### Initial Pinyin Code Table Description
 
-- 根据 KOReader 源码 `ui/data/keyboardlayouts/zh_pinyin_data.lua` 生成
-- 生成工具：`Node.js`
-- 辅助模块：[pinyin-pro](https://github.com/zh-lx/pinyin-pro)
-- 格式说明：`["aa"]={"啊啊"}`、`["bb"]={"爸爸","八百"}`
-- 可按照相同格式增加映射，或替换整个码表内容
+- Generated from KOReader source `ui/data/keyboardlayouts/zh_pinyin_data.lua`
+- Generation tool: `Node.js`
+- Helper module: [pinyin-pro](https://github.com/zh-lx/pinyin-pro)
+- Format: `["aa"]={"啊啊"}`, `["bb"]={"爸爸","八百"}`
+- You can add mappings in the same format, or replace the entire code table content
 
-![拼音-菜单](picture/拼音-菜单.png)
-![拼音-固定键宽](picture/拼音-固定键宽.png)
-![拼音-动态键宽-0.7倍数](picture/拼音-动态键宽-0.7倍数.png)
-![拼音键用法](picture/拼音键用法.png)
-![拼音-方向键切换候选词](picture/拼音-方向键切换候选词.png)
-![匹配模式-精准匹配](picture/匹配模式-精准匹配.png)
-![匹配模式-全面匹配](picture/匹配模式-全面匹配.png)
+![Pinyin-Menu](picture/拼音-菜单.png)
+![Pinyin-FixedWidth](picture/拼音-固定键宽.png)
+![Pinyin-DynamicWidth-0.7](picture/拼音-动态键宽-0.7倍数.png)
+![PinyinKey-Usage](picture/拼音键用法.png)
+![Pinyin - Navigate candidates with arrow keys](picture/拼音-方向键切换候选词.png)
+![MatchingMode-Precise](picture/匹配模式-精准匹配.png)
+![MatchingMode-Comprehensive](picture/匹配模式-全面匹配.png)
 
-#### 参与贡献
+#### Contributing
 
-1. Fork 本仓库
-2. 新建 Feat_xxx 分支
-3. 提交代码
-4. 新建 Pull Request
+1. Fork this repository
+2. Create a new Feat_xxx branch
+3. Commit your code
+4. Create a new Pull Request
 
-#### 项目地址
+#### Repository Links
 
 - Gitee : https://gitee.com/gytwo/pinyin_enhancement.koplugin
 - GitHub: https://github.com/gytwo/pinyin_enhancement.koplugin

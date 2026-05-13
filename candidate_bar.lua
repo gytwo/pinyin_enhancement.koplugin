@@ -1,7 +1,7 @@
 -- candidate_bar.lua
 
 --[[
-    拼音候选词（动态按键宽度，只重建第一行）
+    拼音候选词（动态按键宽度，支持新的首字母词库）
 ]]
 
 local logger = require("logger")
@@ -29,6 +29,7 @@ local current_ime = nil
 local current_inputbox = nil
 local current_keyboard = nil
 local code_map = nil
+local code_map_abbr = nil
 
 local current_pinyin = ""
 local current_candidates = nil
@@ -206,6 +207,7 @@ local function getRawCandidatesFromCodeMap(pinyin)
             end
         end
     end
+
     
     -- 根据匹配模式决定是否继续前缀匹配
     local should_continue = false
@@ -434,6 +436,72 @@ local function loadCodeMapDirectly()
         return true
     end
     return false
+end
+
+-- 直接加载首字母码表数据
+local function loadAbbrCodeMapDirectly()
+    local ok, data = pcall(require, "zh_pinyin_data_abbr")
+    if ok and data and type(data) == "table" then
+        code_map_abbr = data
+        -- 统计加载了多少个条目
+        local count = 0
+        for _ in pairs(data) do count = count + 1 end
+        return true
+    else
+        logger.warn("[CANDIDATE_BAR] 首字母码表加载失败: " .. tostring(ok) .. " " .. tostring(data))
+        return false
+    end
+end
+
+-- 统一加载所有码表并合并
+local function loadAllCodeMaps()
+    -- 加载拼音码表
+    local ok1 = loadCodeMapDirectly()
+    -- 加载首字母码表
+    local ok2 = loadAbbrCodeMapDirectly()
+    
+    if not ok1 and not ok2 then
+        logger.warn("[CANDIDATE_BAR] 所有码表加载失败！")
+        return false
+    end
+    
+    -- 合并码表：将首字母码表的内容合并到拼音码表中
+    if code_map_abbr then
+        for k, v in pairs(code_map_abbr) do
+            if code_map[k] then
+                -- 拼音码表中已有这个键，合并
+                local existing = code_map[k]
+                if type(existing) == "table" then
+                    if type(v) == "table" then
+                        for _, w in ipairs(v) do
+                            table.insert(existing, w)
+                        end
+                    else
+                        table.insert(existing, v)
+                    end
+                else
+                    -- existing 是字符串
+                    local new_table = {existing}
+                    if type(v) == "table" then
+                        for _, w in ipairs(v) do
+                            table.insert(new_table, w)
+                        end
+                    else
+                        table.insert(new_table, v)
+                    end
+                    code_map[k] = new_table
+                end
+            else
+                -- 拼音码表中没有，直接添加
+                code_map[k] = v
+            end
+        end
+        -- 合并完成后清空首字母码表，释放内存
+        code_map_abbr = nil
+        logger.info("[CANDIDATE_BAR] 码表合并完成")
+    end
+    
+    return true
 end
 
 -- 获取所有候选词并分页（根据模式使用不同逻辑）
@@ -1220,7 +1288,7 @@ local function hookVirtualKeyboard()
         return true
     end
     
-    loadCodeMapDirectly()
+    loadAllCodeMaps()
     current_ime = findIME()
     addCandidateRowToKeyboardLayout()
     

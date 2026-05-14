@@ -505,7 +505,6 @@ function M.perform_update(download_url, target_version)
         local zip_path, err = M.download_update(download_url)
         
         if not zip_path then
-            close_status()
             UIManager:show(Notification:new{
                 text = err or gettext("下载失败，请检查网络连接后重试"),
                 timeout = 4

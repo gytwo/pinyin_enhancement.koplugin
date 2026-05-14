@@ -1,6 +1,6 @@
 -- pinyin_update.lua
 -- 拼音增强插件在线更新模块
--- 支持 Gitee + GitHub 双源，三种下载方式自动切换，带下载进度提示
+-- 支持 Gitee + GitHub 双源，自动切换并保持一致性
 
 local logger = require("logger")
 local UIManager = require("ui/uimanager")
@@ -14,15 +14,18 @@ local gettext = require("gettext")
 
 local M = {}
 
--- 仓库信息
 local REPO_OWNER = "gytwo"
 local REPO_NAME = "pinyin_enhancement.koplugin"
-
--- 手动上传的附件文件名
 local MANUAL_ZIP_NAME = "pinyin_enhancement.koplugin.zip"
 
+local Device = require("device")
+local is_android = Device:isAndroid()
+
+-- 当前使用的源（全局，一旦确定就固定）
+local current_source = nil
+
 -- 定义更新源
-local UPDATE_SOURCES = {
+local SOURCES = {
     gitee = {
         name = "Gitee",
         api_url = "https://gitee.com/api/v5/repos/%s/%s/releases",
@@ -32,9 +35,6 @@ local UPDATE_SOURCES = {
         api_url = "https://api.github.com/repos/%s/%s/releases",
     }
 }
-
-local Device = require("device")
-local is_android = Device:isAndroid()
 
 -- 获取插件目录
 local plugin_dir
@@ -85,7 +85,7 @@ local function get_current_version()
     return version or "v1.0"
 end
 
--- 通用 HTTP 请求函数（带超时）
+-- HTTP 请求（带超时）
 local function request_url(url, timeout)
     timeout = timeout or 10
     logger.info("PinyinEnhancement: 请求 URL: " .. url)
@@ -125,74 +125,57 @@ local function request_url(url, timeout)
     return data
 end
 
--- 获取版本列表
-function M.get_all_versions()
-    local all_versions = {}
-    local sources = {UPDATE_SOURCES.gitee, UPDATE_SOURCES.github}
-    
-    for _, source in ipairs(sources) do
-        local page = 1
-        while true do
-            local api_url = string.format(source.api_url, REPO_OWNER, REPO_NAME)
-            local url = api_url .. "?page=" .. tostring(page) .. "&per_page=100"
-            local data = request_url(url, 15)
-            
-            if not data or #data == 0 then
-                break
-            end
-            
-            for _, release in ipairs(data) do
-                local tag_name = release.tag_name or release.name
-                if tag_name then
-                    local zip_url = nil
-                    if release.assets then
-                        for _, asset in ipairs(release.assets) do
-                            if asset.name == MANUAL_ZIP_NAME then
-                                zip_url = asset.browser_download_url
-                                break
-                            end
-                        end
-                    end
-                    table.insert(all_versions, {
-                        tag = tag_name,
-                        url = zip_url,
-                        body = release.body,
-                        source = source.name,
-                    })
-                end
-            end
-            
-            if #data < 100 then
-                break
-            end
-            page = page + 1
-        end
+-- 确定使用哪个源（优先 Gitee，失败则切换到 GitHub）
+local function determine_source()
+    if current_source then
+        return current_source
     end
     
-    return all_versions
+    -- 先尝试 Gitee
+    local url = string.format(SOURCES.gitee.api_url .. "/latest", REPO_OWNER, REPO_NAME)
+    local data = request_url(url, 10)
+    
+    if data and data.tag_name then
+        current_source = SOURCES.gitee
+        logger.info("PinyinEnhancement: 使用 Gitee 源")
+        return current_source
+    end
+    
+    -- Gitee 失败，尝试 GitHub
+    logger.info("PinyinEnhancement: Gitee 不可用，切换到 GitHub")
+    url = string.format(SOURCES.github.api_url .. "/latest", REPO_OWNER, REPO_NAME)
+    data = request_url(url, 10)
+    
+    if data and data.tag_name then
+        current_source = SOURCES.github
+        logger.info("PinyinEnhancement: 使用 GitHub 源")
+        return current_source
+    end
+    
+    -- 都失败
+    current_source = nil
+    logger.error("PinyinEnhancement: 所有源均不可用")
+    return nil
 end
 
--- 获取最新版本（自动切换源）
+-- 获取最新版本信息
 function M.get_latest_version()
-    -- 优先尝试 Gitee
-    local url = string.format(UPDATE_SOURCES.gitee.api_url .. "/latest", REPO_OWNER, REPO_NAME)
-    local data = request_url(url, 15)
-    local source_used = UPDATE_SOURCES.gitee.name
-    
-    if not data or not data.tag_name then
-        logger.info("PinyinEnhancement: Gitee 获取最新版本失败，切换到 GitHub")
-        url = string.format(UPDATE_SOURCES.github.api_url .. "/latest", REPO_OWNER, REPO_NAME)
-        data = request_url(url, 15)
-        source_used = UPDATE_SOURCES.github.name
+    local source = determine_source()
+    if not source then
+        return nil, nil, nil, "无法连接到更新服务器"
     end
     
+    local url = string.format(source.api_url .. "/latest", REPO_OWNER, REPO_NAME)
+    local data = request_url(url, 15)
+    
     if not data or not data.tag_name then
-        return nil, nil, nil, "网络请求异常"
+        return nil, nil, nil, "获取版本信息失败"
     end
     
     local tag_name = data.tag_name or data.name
-    logger.info("PinyinEnhancement: 最新版本: " .. tag_name .. " (来源: " .. source_used .. ")")
+    logger.info("PinyinEnhancement: 最新版本: " .. tag_name .. " (来源: " .. source.name .. ")")
     
+    -- 获取下载地址
     local zip_url = nil
     if data.assets then
         for _, asset in ipairs(data.assets) do
@@ -208,7 +191,56 @@ function M.get_latest_version()
         logger.info("PinyinEnhancement: 使用自动生成的源码包")
     end
     
-    return tag_name, zip_url, source_used, data.body
+    return tag_name, zip_url, source.name, data.body
+end
+
+-- 获取版本列表（用于回退，使用已确定的源）
+function M.get_all_versions()
+    local source = determine_source()
+    if not source then
+        return {}
+    end
+    
+    local all_versions = {}
+    local page = 1
+    
+    while true do
+        local url = string.format(source.api_url, REPO_OWNER, REPO_NAME)
+        url = url .. "?page=" .. tostring(page) .. "&per_page=100"
+        local data = request_url(url, 15)
+        
+        if not data or #data == 0 then
+            break
+        end
+        
+        for _, release in ipairs(data) do
+            local tag_name = release.tag_name or release.name
+            if tag_name then
+                local zip_url = nil
+                if release.assets then
+                    for _, asset in ipairs(release.assets) do
+                        if asset.name == MANUAL_ZIP_NAME then
+                            zip_url = asset.browser_download_url
+                            break
+                        end
+                    end
+                end
+                table.insert(all_versions, {
+                    tag = tag_name,
+                    url = zip_url,
+                    body = release.body,
+                    source = source.name,
+                })
+            end
+        end
+        
+        if #data < 100 then
+            break
+        end
+        page = page + 1
+    end
+    
+    return all_versions
 end
 
 function M.is_newer_version(current, latest)
@@ -238,25 +270,12 @@ function M.is_newer_version(current, latest)
     return false
 end
 
--- 下载状态提示
-local status_notification = nil
-
-local function show_status(text)
-    if status_notification then
-        UIManager:close(status_notification)
-    end
-    status_notification = Notification:new{
+-- 显示临时提示
+local function show_msg(text, timeout)
+    UIManager:show(Notification:new{
         text = text,
-        timeout = 0,
-    }
-    UIManager:show(status_notification)
-end
-
-local function close_status()
-    if status_notification then
-        UIManager:close(status_notification)
-        status_notification = nil
-    end
+        timeout = timeout or 2,
+    })
 end
 
 -- 下载更新（三种方式，每种15秒超时）
@@ -277,48 +296,37 @@ function M.download_update(download_url)
     else
         zip_path = "/tmp/pinyin_enhancement.koplugin.zip"
     end
-    logger.info("PinyinEnhancement: 下载路径: " .. zip_path)
     
-    -- 方式1: curl（15秒超时）
-    show_status(gettext("正在尝试 curl 下载... (15秒超时)"))
-    logger.info("PinyinEnhancement: 尝试 curl 下载...")
+    -- 方式1: curl
+    UIManager:show(Notification:new{ text = gettext("正在尝试 curl 下载... (15秒超时)"), timeout = 0 })
     local cmd = string.format("curl -L --max-time 15 -o '%s' '%s' 2>/dev/null", zip_path, download_url)
     local result = os.execute(cmd)
-    logger.info("PinyinEnhancement: curl 结果: " .. tostring(result))
     
-    -- 方式2: wget（15秒超时）
+    -- 方式2: wget
     if result ~= 0 then
-        show_status(gettext("curl 失败，正在尝试 wget 下载... (15秒超时)"))
-        logger.info("PinyinEnhancement: 尝试 wget 下载...")
+        UIManager:show(Notification:new{ text = gettext("curl 失败，正在尝试 wget 下载... (15秒超时)"), timeout = 0 })
         cmd = string.format("wget --timeout=15 -O '%s' '%s' 2>/dev/null", zip_path, download_url)
         result = os.execute(cmd)
-        logger.info("PinyinEnhancement: wget 结果: " .. tostring(result))
     end
     
-    -- 方式3: busybox wget（15秒超时）
+    -- 方式3: busybox wget
     if result ~= 0 then
-        show_status(gettext("wget 失败，正在尝试 busybox wget 下载... (15秒超时)"))
-        logger.info("PinyinEnhancement: 尝试 busybox wget 下载...")
+        UIManager:show(Notification:new{ text = gettext("wget 失败，正在尝试 busybox wget 下载... (15秒超时)"), timeout = 0 })
         cmd = string.format("busybox wget --timeout=15 -O '%s' '%s' 2>/dev/null", zip_path, download_url)
         result = os.execute(cmd)
-        logger.info("PinyinEnhancement: busybox wget 结果: " .. tostring(result))
     end
     
-    close_status()
-    
     if result ~= 0 then
-        logger.error("PinyinEnhancement: 所有下载方式均失败")
+        show_msg(gettext("下载失败，请检查网络"), 3)
         os.remove(zip_path)
-        return nil, gettext("下载失败，请检查网络连接后重试")
+        return nil, "下载失败"
     end
     
     local size = lfs.attributes(zip_path, "size") or 0
-    logger.info("PinyinEnhancement: 下载完成，大小: " .. size .. " 字节")
-    
     if size < 1000 then
-        logger.error("PinyinEnhancement: 下载的文件无效（太小）")
+        show_msg(gettext("下载的文件无效"), 3)
         os.remove(zip_path)
-        return nil, gettext("下载的文件无效")
+        return nil, "下载的文件无效"
     end
     
     return zip_path
@@ -340,15 +348,13 @@ function M.install_update(zip_path)
         os.remove(zip_path)
         
         if result == 0 then
-            logger.info("PinyinEnhancement: Android 自动安装成功")
+            logger.info("PinyinEnhancement: 自动安装成功")
             return true
         else
-            logger.warn("PinyinEnhancement: Android 自动安装失败")
+            logger.warn("PinyinEnhancement: 自动安装失败")
             return false
         end
     else
-        logger.info("PinyinEnhancement: 解压到插件目录: " .. plugin_dir)
-        
         local result = os.execute(string.format("unzip -o %s -d %s", zip_path, plugin_dir))
         
         if result ~= 0 then
@@ -421,30 +427,21 @@ end
 function M.check_for_updates(silent)
     if not NetworkMgr:isOnline() then
         if not silent then
-            UIManager:show(Notification:new{
-                text = gettext("无网络连接，无法检查更新"),
-                timeout = 2
-            })
+            show_msg(gettext("无网络连接，无法检查更新"), 2)
         end
         return
     end
     
     if not silent then
-        UIManager:show(Notification:new{
-            text = gettext("正在检查更新..."),
-            timeout = 1
-        })
+        show_msg(gettext("正在检查更新..."), 1)
     end
     
     UIManager:scheduleIn(0.5, function()
-        local latest_version, download_url, source_used, release_notes = M.get_latest_version()
+        local latest_version, download_url, source_used, err = M.get_latest_version()
         
         if not latest_version then
             if not silent then
-                UIManager:show(Notification:new{
-                    text = gettext("检查更新失败，请稍后重试"),
-                    timeout = 2
-                })
+                show_msg(err or gettext("检查更新失败"), 3)
             end
             return
         end
@@ -454,14 +451,6 @@ function M.check_for_updates(silent)
         if M.is_newer_version(current_version, latest_version) then
             local source_text = source_used and (" (" .. source_used .. ")") or ""
             local message = string.format(gettext("发现新版本: %s%s\n当前版本: %s\n\n是否下载并安装更新？"), latest_version, source_text, current_version)
-            
-            if release_notes and release_notes ~= "" then
-                local notes = release_notes:sub(1, 200)
-                message = message .. "\n\n更新内容:\n" .. notes
-                if #release_notes > 200 then
-                    message = message .. "..."
-                end
-            end
             
             UIManager:show(ConfirmBox:new{
                 text = message,
@@ -485,10 +474,7 @@ function M.check_for_updates(silent)
                     UIManager:scheduleIn(0.5, function()
                         local all_versions = M.get_all_versions()
                         if not all_versions or #all_versions == 0 then
-                            UIManager:show(Notification:new{
-                                text = gettext("获取版本列表失败"),
-                                timeout = 2
-                            })
+                            show_msg(gettext("获取版本列表失败"), 2)
                             return
                         end
                         show_version_choice(all_versions, current_version)
@@ -527,7 +513,6 @@ function M.perform_update(download_url, target_version)
             return
         end
         
-        close_status()
         UIManager:show(Notification:new{
             text = gettext("正在安装更新") .. version_text .. "...",
             timeout = 1

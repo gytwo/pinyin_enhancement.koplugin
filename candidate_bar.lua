@@ -87,15 +87,35 @@ local function recordSelection(word)
     saveSelectionHistory()
 end
 
--- 按历史选择次数排序（次数高的排前面）
+-- 按历史选择次数排序，相同词频时保持原始顺序
 local function sortByHistory(words)
     loadSelectionHistory()
-    table.sort(words, function(a, b)
-        local ha = selection_history[a] or 0
-        local hb = selection_history[b] or 0
-        return ha > hb
+    
+    -- 记录每个词的原始位置
+    local indexed_words = {}
+    for i, word in ipairs(words) do
+        indexed_words[i] = {
+            word = word,
+            index = i,
+            count = selection_history[word] or 0
+        }
+    end
+    
+    -- 排序：词频高的在前，词频相同时原始位置小的在前
+    table.sort(indexed_words, function(a, b)
+        if a.count ~= b.count then
+            return a.count > b.count
+        end
+        return a.index < b.index
     end)
-    return words
+    
+    -- 提取结果
+    local result = {}
+    for i, item in ipairs(indexed_words) do
+        result[i] = item.word
+    end
+    
+    return result
 end
 
 -- 获取候选词标准宽度倍数配置

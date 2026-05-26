@@ -25,7 +25,8 @@ After downloading and extracting, place the `pinyin_enhancement.koplugin` folder
 | Candidate word limit | Default 56 candidates, can be disabled (may affect performance) |
 | Candidate key width mode | **Dynamic width** (fixed text size); **Fixed width** (text automatically shrinks) |
 | Candidate dynamic width multiplier | 6 options from 0.5x to 1.0x (minimum width ≥ 0.8× width of a single key in the second row) |
-| Clear candidate word history | Candidates are sorted by frequency by default (more frequent = higher). Clear history and restart KOReader to restore original sorting |
+| Enable frequency sort | When enabled, candidate words are sorted by usage frequency (most used first). Words with the same frequency keep their original order|
+| Clear candidate word history | Clear history to restore original candidate order |
 
 4. Candidate word sources:
    - KOReader source table: `ui/data/keyboardlayouts/zh_pinyin_data.lua`

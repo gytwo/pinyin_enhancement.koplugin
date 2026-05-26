@@ -125,6 +125,20 @@ local function setArrowSelect(enabled)
     G_reader_settings:saveSetting("pinyin_arrow_select", enabled)
 end
 
+-- 获取是否启用词频排序
+local function getFrequencySort()
+    local enabled = G_reader_settings:readSetting("pinyin_frequency_sort")
+    if enabled == nil then
+        return true  -- 默认启用
+    end
+    return enabled
+end
+
+-- 保存词频排序设置
+local function setFrequencySort(enabled)
+    G_reader_settings:saveSetting("pinyin_frequency_sort", enabled)
+end
+
 -- 加载补丁（只执行一次）
 local function loadPatch()
     if patch_loaded_flag then
@@ -400,15 +414,31 @@ local function buildSettingsMenu()
                 help_text = _("调整候选词的动态键宽倍数，越小每页可显示越多候选词。"),
             },
             {
-                text = _("清空候选词使用记录"),
+                text = _("启用词频排序"),
+                checked_func = function() return getFrequencySort() end,
                 callback = function()
-                    G_reader_settings:saveSetting("pinyin_selection_history", {})
+                    local current = getFrequencySort()
+                    setFrequencySort(not current)
                     UIManager:show(Notification:new{
-                        text = _("候选词使用记录已清空，重启后生效"),
+                        text = current and _("词频排序已关闭，恢复原始顺序") or _("词频排序已开启，按使用频率排序"),
                         timeout = 2,
                     })
                 end,
-                help_text = _("清空所有候选词的选择次数记录，排序恢复默认。"),
+                help_text = _("开启后，候选词按使用频率从高到低排序；关闭后按码表原始顺序显示。"),
+            },
+            {
+                text = _("清空候选词使用记录"),
+                callback = function()
+                    G_reader_settings:saveSetting("pinyin_selection_history", {})
+                    -- 立即清空内存中的缓存
+                    if _G.pinyin_enhancement and _G.pinyin_enhancement.clearSelectionHistoryCache then
+                        _G.pinyin_enhancement.clearSelectionHistoryCache()
+                    end
+                    UIManager:show(Notification:new{
+                        text = _("候选词使用记录已清空"),
+                        timeout = 2,
+                    })
+                end,
             },
             {
                 text = _("检查更新"),

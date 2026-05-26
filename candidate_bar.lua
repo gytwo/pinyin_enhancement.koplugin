@@ -64,6 +64,25 @@ local next_page_key = nil
 -- 当前高亮的候选词索引
 local current_highlight_index = 1
 
+-- 获取是否启用词频排序
+local function getFrequencySortEnabled()
+    local enabled = G_reader_settings:readSetting("pinyin_frequency_sort")
+    if enabled == nil then
+        return true  -- 默认启用，保持原有行为
+    end
+    return enabled
+end
+
+-- 清空选择历史缓存（立即生效）
+function clearSelectionHistoryCache()
+    selection_history = {}
+    history_loaded = false
+end
+
+-- 导出函数供外部调用
+_G.pinyin_enhancement = _G.pinyin_enhancement or {}
+_G.pinyin_enhancement.clearSelectionHistoryCache = clearSelectionHistoryCache
+
 -- 加载选择历史
 local function loadSelectionHistory()
     if history_loaded then
@@ -89,6 +108,11 @@ end
 
 -- 按历史选择次数排序，相同词频时保持原始顺序
 local function sortByHistory(words)
+    -- 如果用户关闭了词频排序，直接返回原始顺序
+    if not getFrequencySortEnabled() then
+        return words
+    end
+    
     loadSelectionHistory()
     
     -- 记录每个词的原始位置

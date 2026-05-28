@@ -1,7 +1,7 @@
 -- candidate_bar.lua
 
 --[[
-    拼音候选词（动态按键宽度，支持新的首字母词库）
+    拼音候选词（动态按键宽度、首字母词库、支持添加额外词库）
 ]]
 
 local logger = require("logger")
@@ -20,6 +20,7 @@ local FrameContainer = require("ui/widget/container/framecontainer")
 local CenterContainer = require("ui/widget/container/centercontainer")
 local Size = require("ui/size")
 local VerticalSpan = require("ui/widget/verticalspan")
+local LexiconManager = require("lexicon_manager")
 
 logger.info("[CANDIDATE_BAR] 候选词栏模块加载")
 
@@ -33,7 +34,6 @@ local code_map_abbr = nil
 -- 词频统计相关
 local selection_history = nil
 local history_loaded = false
-local wordPinyinMap = {}
 
 local current_pinyin = ""
 local current_candidates = nil
@@ -346,6 +346,55 @@ local function getRawCandidatesFromCodeMap(pinyin)
     return result
 end
 
+-- ========== 额外码表合并 ==========  
+local function mergeLexiconsToCodeMap(extra_lexicons)
+    if not code_map then
+        code_map = {}
+    end
+    
+    for filename, lexicon_data in pairs(extra_lexicons) do
+        for py, words in pairs(lexicon_data) do
+            if code_map[py] then
+                local existing = code_map[py]
+                if type(existing) == "table" then
+                    if type(words) == "table" then
+                        for _, w in ipairs(words) do
+                            table.insert(existing, w)
+                        end
+                    elseif type(words) == "string" then
+                        table.insert(existing, words)
+                    end
+                else
+                    local new_table = {existing}
+                    if type(words) == "table" then
+                        for _, w in ipairs(words) do
+                            table.insert(new_table, w)
+                        end
+                    elseif type(words) == "string" then
+                        table.insert(new_table, words)
+                    end
+                    code_map[py] = new_table
+                end
+            else
+                code_map[py] = words
+            end
+        end
+        
+    end
+end
+
+if not table.find then
+    function table.find(t, value)
+        for i, v in ipairs(t) do
+            if v == value then
+                return i
+            end
+        end
+        return nil
+    end
+end
+-- ========== 额外码表合并 End ==========
+
 -- 自定义 VirtualKey（动态宽度模式使用）
 local MyVirtualKey = InputContainer:extend{
     label = nil,
@@ -520,20 +569,6 @@ local function loadCodeMapDirectly()
     local ok, data = pcall(require, "ui/data/keyboardlayouts/zh_pinyin_data")
     if ok and data and type(data) == "table" then
         code_map = data
-        -- 记录每个词组的完整拼音
-        for py, words in pairs(data) do
-            if type(words) == "table" then
-                for _, word in ipairs(words) do
-                    if not wordPinyinMap[word] then
-                        wordPinyinMap[word] = py
-                    end
-                end
-            elseif type(words) == "string" then
-                if not wordPinyinMap[words] then
-                    wordPinyinMap[words] = py
-                end
-            end
-        end
         return true
     end
     return false
@@ -564,23 +599,6 @@ local function loadAllCodeMaps()
     if not ok1 and not ok2 then
         logger.warn("[CANDIDATE_BAR] 所有码表加载失败！")
         return false
-    end
-    
-    -- 记录首字母码表中词组的拼音
-    if code_map_abbr then
-        for k, v in pairs(code_map_abbr) do
-            if type(v) == "table" then
-                for _, word in ipairs(v) do
-                    if not wordPinyinMap[word] then
-                        wordPinyinMap[word] = k
-                    end
-                end
-            elseif type(v) == "string" then
-                if not wordPinyinMap[v] then
-                    wordPinyinMap[v] = k
-                end
-            end
-        end
     end
     
     -- 合并码表：将首字母码表的内容合并到拼音码表中
@@ -619,6 +637,13 @@ local function loadAllCodeMaps()
         logger.info("[CANDIDATE_BAR] 码表合并完成")
     end
     
+    -- 加载并合并用户启用的额外码表
+    local extra_lexicons = LexiconManager.loadEnabledLexiconsData()
+    if extra_lexicons and next(extra_lexicons) then
+        mergeLexiconsToCodeMap(extra_lexicons)
+        logger.info("[CANDIDATE_BAR] 额外码表合并完成")
+    end
+
     return true
 end
 
@@ -1403,6 +1428,13 @@ local originalSetKeyboardLayout = nil
 -- Hook VirtualKeyboard（只执行一次）
 local function hookVirtualKeyboard()
     if class_hooked then
+        -- 检查是否需要重载码表
+        local need_reload = G_reader_settings:readSetting("pinyin_need_reload_lexicon")
+        if need_reload then
+            logger.info("[CANDIDATE_BAR] 检测到码表变更，重新加载...")
+            loadAllCodeMaps()
+            G_reader_settings:saveSetting("pinyin_need_reload_lexicon", false)
+        end
         return true
     end
     
@@ -1583,4 +1615,42 @@ local function applyPatch()
 end
 
 UIManager:scheduleIn(0.5, applyPatch)
+
+-- ========== 添加重载函数 ==========
+function reloadLexicons()
+    logger.info("[CANDIDATE_BAR] 实时重载额外码表...")
+    
+    -- 1. 清空现有码表
+    code_map = nil
+    code_map_abbr = nil
+    selection_history = nil
+    history_loaded = false
+    
+    -- 2. 强制垃圾回收
+    collectgarbage("collect")
+    
+    -- 3. 重新加载所有码表
+    loadAllCodeMaps()
+    
+    -- 4. 清空当前拼音状态
+    current_pinyin = ""
+    current_candidates = nil
+    current_page = 1
+    total_pages = 1
+    
+    -- 5. 刷新候选栏
+    if current_keyboard then
+        rebuildFirstRow()
+        UIManager:setDirty(current_keyboard, function()
+            return "ui", current_keyboard.dimen
+        end)
+    end
+    
+    logger.info("[CANDIDATE_BAR] 实时重载完成")
+end
+
+-- 导出函数供外部调用
+_G.pinyin_enhancement = _G.pinyin_enhancement or {}
+_G.pinyin_enhancement.reloadLexicons = reloadLexicons
+
 return true

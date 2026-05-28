@@ -10,14 +10,16 @@ After downloading and extracting, place the `pinyin_enhancement.koplugin` folder
 
 #### Usage Instructions
 
-1. [Settings] - [Enhanced Pinyin Input] - Enable Pinyin candidate words (enabled by default, can be disabled, supports shortcut gesture operations).
+1. [Settings] - [Pinyin Input Method Enhancement] - Enable Pinyin candidate words (enabled by default, can be disabled, supports shortcut gestures).
 2. The Pinyin key on the left side of the candidate bar displays the user's current Pinyin input in real time:
+
    - **Tap**: Clear the current Pinyin state
    - **Long press**: Directly input the Pinyin and clear the candidate bar state
+
 3. Menu Configuration Items:
 
-| Option | Description |
-|--------|-------------|
+| Configuration Item | Description |
+|--------------------|-------------|
 | Space to confirm | Tap to confirm the top candidate (or Pinyin if none, or space if neither); long press to confirm the Pinyin |
 | Navigate candidates with arrow keys | Use arrow keys to switch candidates, space key to confirm (requires enabling the space key confirmation feature) |
 | Candidate bar key background color | Options: White, Light gray |
@@ -25,22 +27,44 @@ After downloading and extracting, place the `pinyin_enhancement.koplugin` folder
 | Candidate word limit | Default 56 candidates, can be disabled (may affect performance) |
 | Candidate key width mode | **Dynamic width** (fixed text size); **Fixed width** (text automatically shrinks) |
 | Candidate dynamic width multiplier | 6 options from 0.5x to 1.0x (minimum width ≥ 0.8× width of a single key in the second row) |
-| Enable frequency sort | When enabled, candidate words are sorted by usage frequency (most used first). Words with the same frequency keep their original order|
+| **⚠️ Extra Lexicons** | Enable to load extra lexicons. **⚠️ WARNING: Loading a large number of lexicons will consume significant memory and may cause the device to freeze due to insufficient memory. Please be sure to back up the complete `koreader` folder before enabling!** |
+| Enable frequency sort | When enabled, candidate words are sorted by usage frequency (most used first). Words with the same frequency keep their original order |
 | Clear candidate word history | Clear history to restore original candidate order |
 
-4. Candidate word sources:
+4. Candidate Word Sources:
    - KOReader source table: `ui/data/keyboardlayouts/zh_pinyin_data.lua`
-   - Custom initial Pinyin code table: `zh_pinyin_data_abbr.lua`
+   - Initial Pinyin lexicon: `zh_pinyin_data_abbr.lua`
+   - Extra lexicons: `lexicon`
 
-#### Initial Pinyin Code Table Description
+#### Initial Pinyin Lexicon Description
 
 - Generated from KOReader source `ui/data/keyboardlayouts/zh_pinyin_data.lua`
 - Generation tool: `Node.js`
 - Helper module: [pinyin-pro](https://github.com/zh-lx/pinyin-pro)
-- Format: `["aa"]={"啊啊"}`, `["bb"]={"爸爸","八百"}`
-- You can add mappings in the same format, or replace the entire code table content
+- Format: `["aa"]={"aah"}` (English example) or `["bb"]={"dad","eight hundred"}`
+- You can add mappings in the same format, or replace the entire lexicon content
+
+#### Extra Lexicons Description
+
+- Vocabulary source: `https://pinyin.sogou.com/dict/`
+- Conversion tool: `node.js` (converts `scel` format to koreader standard `lua` format)
+- Custom lexicons: If you need to add a custom lexicon, simply place your self-made lexicon file (ensure correct format) into the `lexicon` folder. The plugin will automatically scan all lexicons in this folder and display them in the `Extra Lexicons` menu. Find the lexicon in the menu and enable it.
+
+- **⚠️ WARNING: Loading a large number of lexicons will consume significant memory and may cause the device to freeze due to insufficient memory. Please be sure to back up the complete `koreader` folder before enabling!**
+
+| Filename | Menu Display Name | Type |
+|----------|-------------------|------|
+| `Classical Poetry.lua` | 古诗词词库 | File |
+| `Finance.lua` | 财经金融词库 | File |
+| `Ideological.lua` | 思政专业术语词库 | File |
+| `Idiom` | 成语俗语词库 | Folder |
+| `Legal.lua` | 法律词库 | File |
+| `Neologisms.lua` | 新词集锦词库 | File |
+| `Three-Character Idiom.lua` | 三字成语词库 | File |
+| `WittySaying.lua` | 歇后语词库 | File |
 
 ![Pinyin-Menu](picture/拼音-菜单.png)
+![Pinyin-Menu-Extra-Lexicons](picture/拼音-菜单-额外词库.png)
 ![Pinyin-FixedWidth](picture/拼音-固定键宽.png)
 ![Pinyin-DynamicWidth-0.7](picture/拼音-动态键宽-0.7倍数.png)
 ![PinyinKey-Usage](picture/拼音键用法.png)

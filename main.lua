@@ -6,6 +6,9 @@ local Dispatcher = require("dispatcher")
 local Notification = require("ui/widget/notification")
 local InfoMessage = require("ui/widget/infomessage")
 local _ = require("gettext")
+local logger = require("logger")
+local LexiconManager = require("lexicon_manager")
+local ConfirmBox = require("ui/widget/confirmbox")
 
 local PinyinPatch = WidgetContainer:extend{}
 
@@ -138,6 +141,154 @@ end
 local function setFrequencySort(enabled)
     G_reader_settings:saveSetting("pinyin_frequency_sort", enabled)
 end
+
+-- ========== 额外码表菜单 ==========
+local function isLexiconEnabled(filename)
+    local enabled = LexiconManager.getEnabledLexicons()
+    for _, f in ipairs(enabled) do
+        if f == filename then
+            return true
+        end
+    end
+    return false
+end
+
+-- 检查是否所有码表都已启用
+local function isAllLexiconsEnabled()
+    local lexicon_files = LexiconManager.scanLexiconFiles()
+    if #lexicon_files == 0 then
+        return false
+    end
+    local enabled = LexiconManager.getEnabledLexicons()
+    for _, filename in ipairs(lexicon_files) do
+        local found = false
+        for _, f in ipairs(enabled) do
+            if f == filename then
+                found = true
+                break
+            end
+        end
+        if not found then
+            return false
+        end
+    end
+    return true
+end
+
+-- 切换全部启用/禁用
+local function toggleAllLexicons()
+    local lexicon_files = LexiconManager.scanLexiconFiles()
+    if #lexicon_files == 0 then
+        UIManager:show(Notification:new{
+            text = _("未找到码表文件"),
+            timeout = 2,
+        })
+        return
+    end
+    
+    local currently_enabled = isAllLexiconsEnabled()
+    
+    if currently_enabled then
+        -- 当前全部已启用 → 全部禁用
+        LexiconManager.setEnabledLexicons({})
+        local msg = _("已禁用所有码表，需要重启 KOReader 才能生效。是否立即重启？")
+        UIManager:show(ConfirmBox:new{
+            text = msg,
+            ok_text = _("重启"),
+            cancel_text = _("稍后"),
+            ok_callback = function()
+                UIManager:restartKOReader()
+            end
+        })
+    else
+        -- 当前未全部启用 → 全部启用
+        LexiconManager.setEnabledLexicons(lexicon_files)
+        local msg = _("已启用所有码表，需要重启 KOReader 才能生效。是否立即重启？")
+        UIManager:show(ConfirmBox:new{
+            text = msg,
+            ok_text = _("重启"),
+            cancel_text = _("稍后"),
+            ok_callback = function()
+                UIManager:restartKOReader()
+            end
+        })
+    end
+    
+    G_reader_settings:saveSetting("pinyin_need_reload_lexicon", true)
+end
+
+local function toggleLexicon(filename)
+    local enabled = LexiconManager.getEnabledLexicons()
+    local found = false
+    for i, f in ipairs(enabled) do
+        if f == filename then
+            table.remove(enabled, i)
+            found = true
+            break
+        end
+    end
+    if not found then
+        table.insert(enabled, filename)
+    end
+    LexiconManager.setEnabledLexicons(enabled)
+    G_reader_settings:saveSetting("pinyin_need_reload_lexicon", true)
+    
+    UIManager:show(ConfirmBox:new{
+        text = string.format(_("码表「%s」已%s，需要重启 KOReader 才能生效。是否立即重启？"), 
+            filename, 
+            found and _("禁用") or _("启用")),
+        ok_text = _("重启"),
+        cancel_text = _("稍后"),
+        ok_callback = function()
+            UIManager:restartKOReader()
+        end
+    })
+end
+
+local function buildLexiconSubMenu()
+    local lexicon_files = LexiconManager.scanLexiconFiles()
+    if #lexicon_files == 0 then
+        return {
+            {
+                text = _("未找到码表文件"),
+                enabled = false,
+            }
+        }
+    end
+    
+    local sub_menu = {}
+    
+    -- 启用所有码表（带勾选框）
+    table.insert(sub_menu, {
+        text = _("启用所有码表"),
+        checked_func = function()
+            return isAllLexiconsEnabled()
+        end,
+        callback = function()
+            toggleAllLexicons()
+        end,
+        help_text = _("勾选时启用所有码表，取消勾选时禁用所有码表"),
+    })
+    
+    -- 各码表项（使用 LexiconManager 的中文名称）
+    for idx, filename in ipairs(lexicon_files) do
+        -- 调用 LexiconManager.getDisplayName() 获取中文名称
+        local display_name = LexiconManager.getDisplayName(filename)
+        table.insert(sub_menu, {
+            text = display_name,
+            checked_func = function()
+                return isLexiconEnabled(filename)
+            end,
+            callback = function()
+                toggleLexicon(filename)
+            end,
+            help_text = string.format(_("启用/禁用码表: %s"), display_name),
+        })
+    end
+    
+    return sub_menu
+end
+-- ========== 额外码表菜单 End ==========
 
 -- 加载补丁（只执行一次）
 local function loadPatch()
@@ -412,6 +563,11 @@ local function buildSettingsMenu()
                     },
                 },
                 help_text = _("调整候选词的动态键宽倍数，越小每页可显示越多候选词。"),
+            },
+            {
+                text = _("额外码表"),
+                sub_item_table = buildLexiconSubMenu(),
+                help_text = _("选择要启用的额外拼音码表，全部不选则只使用默认码表。"),
             },
             {
                 text = _("启用词频排序"),

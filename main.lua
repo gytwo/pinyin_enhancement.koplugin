@@ -142,7 +142,7 @@ local function setFrequencySort(enabled)
     G_reader_settings:saveSetting("pinyin_frequency_sort", enabled)
 end
 
--- ========== 额外码表菜单 ==========
+-- ========== 扩展码表菜单 ==========
 local function isLexiconEnabled(filename)
     local enabled = LexiconManager.getEnabledLexicons()
     for _, f in ipairs(enabled) do
@@ -288,7 +288,7 @@ local function buildLexiconSubMenu()
     
     return sub_menu
 end
--- ========== 额外码表菜单 End ==========
+-- ========== 扩展码表菜单 End ==========
 
 -- 加载补丁（只执行一次）
 local function loadPatch()
@@ -565,9 +565,9 @@ local function buildSettingsMenu()
                 help_text = _("调整候选词的动态键宽倍数，越小每页可显示越多候选词。"),
             },
             {
-                text = _("额外码表"),
+                text = _("扩展码表"),
                 sub_item_table = buildLexiconSubMenu(),
-                help_text = _("选择要启用的额外拼音码表，全部不选则只使用默认码表。"),
+                help_text = _("选择要启用的扩展拼音码表，全部不选则只使用默认码表。"),
             },
             {
                 text = _("启用词频排序"),

@@ -27,14 +27,14 @@ After downloading and extracting, place the `pinyin_enhancement.koplugin` folder
 | Candidate word limit | Default 56 candidates, can be disabled (may affect performance) |
 | Candidate key width mode | **Dynamic width** (fixed text size); **Fixed width** (text automatically shrinks) |
 | Candidate dynamic width multiplier | 6 options from 0.5x to 1.0x (minimum width ≥ 0.8× width of a single key in the second row) |
-| **⚠️ Extra Lexicons** | Enable to load extra lexicons. **⚠️ WARNING: Loading a large number of lexicons will consume significant memory and may cause the device to freeze due to insufficient memory. Please be sure to back up the complete `koreader` folder before enabling!** |
+| **⚠️ Extended Lexicons** | Enable to load extended lexicons. **⚠️ WARNING: Loading a large number of lexicons will consume significant memory and may cause the device to freeze due to insufficient memory. Please be sure to back up the complete `koreader` folder before enabling!** |
 | Enable frequency sort | When enabled, candidate words are sorted by usage frequency (most used first). Words with the same frequency keep their original order |
 | Clear candidate word history | Clear history to restore original candidate order |
 
 4. Candidate Word Sources:
    - KOReader source table: `ui/data/keyboardlayouts/zh_pinyin_data.lua`
    - Initial Pinyin lexicon: `zh_pinyin_data_abbr.lua`
-   - Extra lexicons: `lexicon`
+   - Extended lexicons: `lexicon`
 
 #### Initial Pinyin Lexicon Description
 
@@ -48,20 +48,22 @@ After downloading and extracting, place the `pinyin_enhancement.koplugin` folder
 
 - Vocabulary source: `https://pinyin.sogou.com/dict/`
 - Conversion tool: `node.js` (converts `scel` format to koreader standard `lua` format)
-- Custom lexicons: If you need to add a custom lexicon, simply place your self-made lexicon file (ensure correct format) into the `lexicon` folder. The plugin will automatically scan all lexicons in this folder and display them in the `Extra Lexicons` menu. Find the lexicon in the menu and enable it.
+- Custom lexicons: If you need to add a custom lexicon, simply place your self-made lexicon file (ensure correct format) into the `lexicon` folder. The plugin will automatically scan all lexicons in this folder and display them in the `Extended Lexicons` menu. Find the lexicon in the menu and enable it.
 
 - **⚠️ WARNING: Loading a large number of lexicons will consume significant memory and may cause the device to freeze due to insufficient memory. Please be sure to back up the complete `koreader` folder before enabling!**
+- **⚠️ WARNING: Custom user-added lexicons must not be too large (exceeding 1MB), as they may also cause the device to freeze due to insufficient memory. Please be sure to back up the complete koreader folder before enablin!**
+
 
 | Filename | Menu Display Name | Type |
 |----------|-------------------|------|
-| `Classical Poetry.lua` | 古诗词词库 | File |
-| `Finance.lua` | 财经金融词库 | File |
-| `Ideological.lua` | 思政专业术语词库 | File |
-| `Idiom` | 成语俗语词库 | Folder |
-| `Legal.lua` | 法律词库 | File |
-| `Neologisms.lua` | 新词集锦词库 | File |
-| `Three-Character Idiom.lua` | 三字成语词库 | File |
-| `WittySaying.lua` | 歇后语词库 | File |
+| `Classical Poetry.lua` | 古诗词码表 | File |
+| `Finance.lua` | 财经金融码表 | File |
+| `Ideological.lua` | 思政专业术语码表 | File |
+| `Idiom` | 成语俗语码表 | Folder |
+| `Legal.lua` | 法律码表 | File |
+| `Neologisms.lua` | 新词集锦码表 | File |
+| `Three-Character Idiom.lua` | 三字成语码表 | File |
+| `WittySaying.lua` | 歇后语码表 | File |
 
 ![Pinyin-Menu](picture/拼音-菜单.png)
 ![Pinyin-Menu-Extra-Lexicons](picture/拼音-菜单-额外词库.png)

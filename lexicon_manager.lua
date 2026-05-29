@@ -9,15 +9,15 @@ local M = {}
 
 -- 文件名到中文名称的映射
 local lexicon_display_names = {
-    ["Classical Poetry.lua"] = "古诗词词库",
-    ["Couplet.lua"] = "对联词库",
-    ["Finance.lua"] = "财经金融词库",
-    ["Ideological.lua"] = "思政专业术语词库",
-    ["Idiom"] = "成语俗语词库",
-    ["Legal.lua"] = "法律词库",
-    ["Neologisms.lua"] = "新词集锦词库",
-    ["Three-Character Idiom.lua"] = "三字成语词库",
-    ["WittySaying.lua"] = "歇后语词库",
+    ["Classical Poetry.lua"] = "古诗词码表",
+    ["Couplet.lua"] = "对联码表",
+    ["Finance.lua"] = "财经金融码表",
+    ["Ideological.lua"] = "思政专业术语码表",
+    ["Idiom"] = "成语俗语码表",
+    ["Legal.lua"] = "法律码表",
+    ["Neologisms.lua"] = "新词集锦码表",
+    ["Three-Character Idiom.lua"] = "三字成语码表",
+    ["WittySaying.lua"] = "歇后语码表",
 }
 
 -- 获取显示名称

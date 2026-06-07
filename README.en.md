@@ -13,8 +13,8 @@ After downloading and extracting, place the `pinyin_enhancement.koplugin` folder
 1. [Settings] - [Pinyin Input Method Enhancement] - Enable Pinyin candidate words (enabled by default, can be disabled, supports shortcut gestures).
 2. The Pinyin key on the left side of the candidate bar displays the user's current Pinyin input in real time:
 
-   - **Tap**: Clear the current Pinyin state
-   - **Long press**: Directly input the Pinyin and clear the candidate bar state
+   - **Tap**: Directly input the Pinyin and clear the candidate bar state
+   - **Long press**: Clear the current Pinyin state
 
 3. Menu Configuration Items:
 

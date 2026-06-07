@@ -21,6 +21,7 @@ local CenterContainer = require("ui/widget/container/centercontainer")
 local Size = require("ui/size")
 local VerticalSpan = require("ui/widget/verticalspan")
 local LexiconManager = require("lexicon_manager")
+local util = require("util")
 
 logger.info("[CANDIDATE_BAR] 候选词栏模块加载")
 
@@ -156,6 +157,15 @@ local function getSpaceCommit()
     local enabled = G_reader_settings:readSetting("pinyin_space_commit")
     if enabled == nil then
         return true
+    end
+    return enabled
+end
+
+-- 获取是否启用换行键上屏
+local function getEnterCommit()
+    local enabled = G_reader_settings:readSetting("pinyin_enter_commit")
+    if enabled == nil then
+        return true  -- 默认开启
     end
     return enabled
 end
@@ -536,22 +546,61 @@ local function commitPinyinText()
         end
     end
     
-    if not inputbox or not inputbox.addChars then
+    if not inputbox then
         return
     end
     
-    inputbox:addChars(current_pinyin)
+    local pinyin_to_commit = current_pinyin
     
+    -- 获取当前文本和光标位置
+    local current_text = inputbox:getText()
+    local charpos = inputbox.charpos or (#current_text + 1)
+    
+    -- 将拼音转为字符数组
+    local pinyin_chars = util.splitToChars(pinyin_to_commit)
+    
+    -- 将文本转为字符数组，在光标位置插入
+    local text_chars = util.splitToChars(current_text)
+    for i = #pinyin_chars, 1, -1 do
+        table.insert(text_chars, charpos, pinyin_chars[i])
+    end
+    
+    -- 更新光标位置
+    local new_charpos = charpos + #pinyin_chars
+    
+    -- 更新 inputbox 的文本和状态
+    local new_text = table.concat(text_chars)
+    inputbox:setText(new_text)
+    
+    -- 使用 text_widget 移动光标到正确位置
+    if inputbox.text_widget and inputbox.text_widget.moveCursorToCharPos then
+        inputbox.text_widget:moveCursorToCharPos(new_charpos)
+    end
+    inputbox.charpos = new_charpos
+    
+    -- 强制重新同步位置
+    if inputbox.resyncPos then
+        inputbox:resyncPos()
+    end
+    
+    -- 清空 IME 栈
     if current_ime and current_ime.clear_stack then
         current_ime:clear_stack()
     end
     
+    -- 清空拼音状态
     current_pinyin = ""
     current_candidates = nil
     current_page = 1
     total_pages = 1
     
+    -- 刷新候选栏
     rebuildFirstRow()
+    
+    -- 刷新显示
+    UIManager:setDirty(inputbox, function()
+        return "ui", inputbox.dimen
+    end)
 end
 
 -- 查找 IME
@@ -1015,8 +1064,8 @@ local function rebuildFirstRowDynamic()
     local has_next = (total_pages > 1 and current_page < total_pages)
     
     if new_row_widgets[1] then
-        new_row_widgets[1].callback = function() clearPinyin() end
-        new_row_widgets[1].hold_callback = function() commitPinyinText() end
+        new_row_widgets[1].callback = function() commitPinyinText() end
+        new_row_widgets[1].hold_callback = function() clearPinyin() end
     end
     
     if new_row_widgets[2] then
@@ -1166,10 +1215,10 @@ local function updateCandidateKeysFixed()
     updateVirtualKeyText(pinyin_key, pinyin_text, pinyin_font_size, bg_color)
     
     pinyin_key.callback = function()
-        clearPinyin()
+        commitPinyinText()
     end
     pinyin_key.hold_callback = function()
-        commitPinyinText()
+        clearPinyin()
     end
     
     -- 更新上一页
@@ -1298,40 +1347,41 @@ local function handleAddChar(key)
         return false
     end
     
-    -- 空格键处理
-    local key_char_space = key
-    if type(key) == "table" then
-        if key.key then
-            key_char_space = key.key
-        elseif key.label then
-            key_char_space = key.label
-        end
+-- 换行键处理
+local key_char_enter = key
+if type(key) == "table" then
+    if key.key then
+        key_char_enter = key.key
+    elseif key.label then
+        key_char_enter = key.label
     end
-    if key_char_space == " " then
-        if getSpaceCommit() then
-            -- 如果方向键选择功能开启，上屏高亮的候选词
-            if getArrowSelect() and current_candidates and #current_candidates > 0 and current_candidates[current_page] then
-                local candidates = current_candidates[current_page].candidates
-                if candidates and #candidates >= current_highlight_index then
-                    commitCandidate(candidates[current_highlight_index])
-                    return true
-                end
-            end
-            -- 否则上屏第一个候选词
-            if current_candidates and #current_candidates > 0 and current_candidates[current_page] then
-                local candidates = current_candidates[current_page].candidates
-                if candidates and #candidates > 0 then
-                    commitCandidate(candidates[1])
-                    return true
-                end
-            end
-            if current_pinyin ~= "" then
-                commitPinyinText()
+end
+if key_char_enter == "\n" then
+    if getEnterCommit() then  -- ★ 只有开启时才拦截
+        -- 如果方向键选择功能开启，上屏高亮的候选词
+        if getArrowSelect() and current_candidates and #current_candidates > 0 and current_candidates[current_page] then
+            local candidates = current_candidates[current_page].candidates
+            if candidates and #candidates >= current_highlight_index then
+                commitCandidate(candidates[current_highlight_index])
                 return true
             end
         end
-        return false
+        -- 否则上屏第一个候选词
+        if current_candidates and #current_candidates > 0 and current_candidates[current_page] then
+            local candidates = current_candidates[current_page].candidates
+            if candidates and #candidates > 0 then
+                commitCandidate(candidates[1])
+                return true
+            end
+        end
+        if current_pinyin ~= "" then
+            commitPinyinText()
+            return true
+        end
     end
+    -- 未开启或什么都没有时，让原始处理函数处理换行
+    return false
+end
     
     if not pinyin_enabled then
         return false
@@ -1541,6 +1591,23 @@ local function hookVirtualKeyboard()
                 end
             end
             
+            -- ★ 新增：设置换行键长按上屏拼音
+            if getEnterCommit() then
+                for _, row in ipairs(self.layout) do
+                    for _, key in ipairs(row) do
+                        -- Enter 键的 label 是 "⮠"，key 是 "\n"
+                        if key.label == "⮠" or (key.key and key.key == "\n") then
+                            key.hold_callback = function()
+                                if current_pinyin ~= "" then
+                                    commitPinyinText()
+                                end
+                            end
+                            break
+                        end
+                    end
+                end
+            end
+           
             -- 添加：替换左右箭头回调（方向键选择功能）
             if getArrowSelect() then
                 -- 确保按键引用是最新的

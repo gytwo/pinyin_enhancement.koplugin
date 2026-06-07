@@ -1346,7 +1346,42 @@ local function handleAddChar(key)
     if not key then
         return false
     end
-    
+
+    -- 空格键处理
+    local key_char_space = key
+    if type(key) == "table" then
+        if key.key then
+            key_char_space = key.key
+        elseif key.label then
+            key_char_space = key.label
+        end
+    end
+    if key_char_space == " " then
+        if getSpaceCommit() then
+            -- 如果方向键选择功能开启，上屏高亮的候选词
+            if getArrowSelect() and current_candidates and #current_candidates > 0 and current_candidates[current_page] then
+                local candidates = current_candidates[current_page].candidates
+                if candidates and #candidates >= current_highlight_index then
+                    commitCandidate(candidates[current_highlight_index])
+                    return true
+                end
+            end
+            -- 否则上屏第一个候选词
+            if current_candidates and #current_candidates > 0 and current_candidates[current_page] then
+                local candidates = current_candidates[current_page].candidates
+                if candidates and #candidates > 0 then
+                    commitCandidate(candidates[1])
+                    return true
+                end
+            end
+            if current_pinyin ~= "" then
+                commitPinyinText()
+                return true
+            end
+        end
+        return false
+    end
+
 -- 换行键处理
 local key_char_enter = key
 if type(key) == "table" then

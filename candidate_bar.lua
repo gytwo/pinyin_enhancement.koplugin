@@ -1392,8 +1392,13 @@ if type(key) == "table" then
     end
 end
 if key_char_enter == "\n" then
-    if getEnterCommit() then  -- ★ 只有开启时才拦截
-        -- 如果方向键选择功能开启，上屏高亮的候选词
+    if getEnterCommit() then
+        -- ★ 单击：优先上屏拼音
+        if current_pinyin ~= "" then
+            commitPinyinText()
+            return true
+        end
+        -- 没有拼音时，上屏候选词
         if getArrowSelect() and current_candidates and #current_candidates > 0 and current_candidates[current_page] then
             local candidates = current_candidates[current_page].candidates
             if candidates and #candidates >= current_highlight_index then
@@ -1401,7 +1406,6 @@ if key_char_enter == "\n" then
                 return true
             end
         end
-        -- 否则上屏第一个候选词
         if current_candidates and #current_candidates > 0 and current_candidates[current_page] then
             local candidates = current_candidates[current_page].candidates
             if candidates and #candidates > 0 then
@@ -1409,12 +1413,7 @@ if key_char_enter == "\n" then
                 return true
             end
         end
-        if current_pinyin ~= "" then
-            commitPinyinText()
-            return true
-        end
     end
-    -- 未开启或什么都没有时，让原始处理函数处理换行
     return false
 end
     
@@ -1626,13 +1625,28 @@ local function hookVirtualKeyboard()
                 end
             end
             
-            -- ★ 新增：设置换行键长按上屏拼音
+            -- ★ 设置换行键长按上屏候选词
             if getEnterCommit() then
                 for _, row in ipairs(self.layout) do
                     for _, key in ipairs(row) do
-                        -- Enter 键的 label 是 "⮠"，key 是 "\n"
                         if key.label == "⮠" or (key.key and key.key == "\n") then
                             key.hold_callback = function()
+                                -- 长按：上屏候选词
+                                if getArrowSelect() and current_candidates and #current_candidates > 0 and current_candidates[current_page] then
+                                    local candidates = current_candidates[current_page].candidates
+                                    if candidates and #candidates >= current_highlight_index then
+                                        commitCandidate(candidates[current_highlight_index])
+                                        return
+                                    end
+                                end
+                                if current_candidates and #current_candidates > 0 and current_candidates[current_page] then
+                                    local candidates = current_candidates[current_page].candidates
+                                    if candidates and #candidates > 0 then
+                                        commitCandidate(candidates[1])
+                                        return
+                                    end
+                                end
+                                -- 没有候选词时，上屏拼音
                                 if current_pinyin ~= "" then
                                     commitPinyinText()
                                 end
@@ -1641,7 +1655,7 @@ local function hookVirtualKeyboard()
                         end
                     end
                 end
-            end
+            end           
            
             -- 添加：替换左右箭头回调（方向键选择功能）
             if getArrowSelect() then

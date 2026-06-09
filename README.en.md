@@ -21,7 +21,7 @@ After downloading and extracting, place the `pinyin_enhancement.koplugin` folder
 | Configuration Item | Description |
 |--------------------|-------------|
 | Space to confirm| Tap Space to confirm primary candidate (or Pinyin if no candidate, or space if neither); Long press to confirm Pinyin |
-| Enter to confirm| Tap Enter to confirm primary candidate (or Pinyin if no candidate, or line break if neither); Long press to confirm Pinyin |
+| Enter to confirm| Tap Enter to confirm Pinyin (or line break if no Pinyin); Long press to confirm candidate |
 | Navigate candidates with arrow keys | Use arrow keys to switch candidates, Space/Enter to confirm (requires enabling Space/Enter confirmation feature) |
 | Candidate bar key background color | Options: White, Light gray |
 | Candidate matching mode | **Precise mode** (stop on match); **Comprehensive mode** (match and append) - displays both exact and prefix match results together |

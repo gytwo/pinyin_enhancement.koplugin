@@ -369,10 +369,10 @@ local function buildSettingsMenu()
                         timeout = 2,
                     })
                 end,
-                help_text = _("开启后，单击空格键自动上屏第一个/高亮候选词或当前拼音；长按空格键上屏当前拼音。"),
+                help_text = _("开启后，单击空格键自动上屏候选词/拼音；长按空格键上屏拼音。"),
             },
             {
-                text = _("换行键上屏首选词/拼音"),
+                text = _("换行键上屏拼音/首选词"),
                 checked_func = function() 
                     local enabled = G_reader_settings:readSetting("pinyin_enter_commit")
                     if enabled == nil then return true end
@@ -387,7 +387,7 @@ local function buildSettingsMenu()
                         timeout = 2,
                     })
                 end,
-                help_text = _("开启后，单击换行键自动上屏第一个/高亮候选词或当前拼音；长按换行键上屏当前拼音。"),
+                help_text = _("开启后，单击换行键自动上屏拼音；长按换行键上屏候选词。"),
             },
             {
                 text = _("方向键切换候选词"),
@@ -400,7 +400,7 @@ local function buildSettingsMenu()
                         timeout = 2,
                     })
                 end,
-                help_text = _("开启后，左右箭头键切换候选词，空格键上屏。"),
+                help_text = _("开启后，左右箭头键切换候选词，空格键/换行键上屏。"),
             },
             {
                 text = _("候选栏按键背景色"),

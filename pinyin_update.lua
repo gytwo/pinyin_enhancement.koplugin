@@ -106,8 +106,6 @@ if plugin_dir:sub(-1) == "/" then
     plugin_dir = plugin_dir:sub(1, -2)
 end
 
-logger.info("PinyinEnhancement: 插件目录: " .. plugin_dir)
-
 local function get_current_version()
     local meta_path = plugin_dir .. "/_meta.lua"
     local f = io.open(meta_path, "r")
@@ -126,7 +124,6 @@ end
 -- HTTP 请求（带超时）
 local function request_url(url, timeout)
     timeout = timeout or 10
-    logger.info("PinyinEnhancement: 请求 URL: " .. url)
     
     local http = require("socket.http")
     local ltn12 = require("ltn12")
@@ -235,7 +232,6 @@ end
 -- 解析 release 数据，提取下载地址
 function M._parse_release_data(data, source)
     local tag_name = data.tag_name or data.name
-    logger.info("PinyinEnhancement: 最新版本: " .. tag_name .. " (来源: " .. source.name .. ")")
     
     -- 获取下载地址
     local zip_url = nil
@@ -243,14 +239,12 @@ function M._parse_release_data(data, source)
         for _, asset in ipairs(data.assets) do
             if asset.name == MANUAL_ZIP_NAME then
                 zip_url = asset.browser_download_url
-                logger.info("PinyinEnhancement: 使用手动上传的 ZIP 包")
                 break
             end
         end
     end
     if not zip_url and data.zipball_url then
         zip_url = data.zipball_url
-        logger.info("PinyinEnhancement: 使用自动生成的源码包")
     end
     
     return tag_name, zip_url, source.name, data.body
@@ -472,7 +466,6 @@ local function install_update(zip_path)
         os.remove(zip_path)
         
         if result == 0 then
-            logger.info("PinyinEnhancement: 自动安装成功")
             return true
         else
             logger.warn("PinyinEnhancement: 自动安装失败")
@@ -488,7 +481,6 @@ local function install_update(zip_path)
         os.remove(zip_path)
         
         if result == 0 then
-            logger.info("PinyinEnhancement: 更新安装成功")
         else
             logger.warn("PinyinEnhancement: 更新安装失败")
         end

@@ -23,8 +23,6 @@ local VerticalSpan = require("ui/widget/verticalspan")
 local LexiconManager = require("lexicon_manager")
 local util = require("util")
 
-logger.info("[CANDIDATE_BAR] 候选词栏模块加载")
-
 local patched = false
 local class_hooked = false
 local current_ime = nil
@@ -683,14 +681,12 @@ local function loadAllCodeMaps()
         end
         -- 合并完成后清空首字母码表，释放内存
         code_map_abbr = nil
-        logger.info("[CANDIDATE_BAR] 码表合并完成")
     end
     
     -- 加载并合并用户启用的额外码表
     local extra_lexicons = LexiconManager.loadEnabledLexiconsData()
     if extra_lexicons and next(extra_lexicons) then
         mergeLexiconsToCodeMap(extra_lexicons)
-        logger.info("[CANDIDATE_BAR] 额外码表合并完成")
     end
 
     return true
@@ -1515,7 +1511,6 @@ local function hookVirtualKeyboard()
         -- 检查是否需要重载码表
         local need_reload = G_reader_settings:readSetting("pinyin_need_reload_lexicon")
         if need_reload then
-            logger.info("[CANDIDATE_BAR] 检测到码表变更，重新加载...")
             loadAllCodeMaps()
             G_reader_settings:saveSetting("pinyin_need_reload_lexicon", false)
         end
@@ -1734,7 +1729,6 @@ UIManager:scheduleIn(0.5, applyPatch)
 
 -- ========== 添加重载函数 ==========
 function reloadLexicons()
-    logger.info("[CANDIDATE_BAR] 实时重载额外码表...")
     
     -- 1. 清空现有码表
     code_map = nil
@@ -1762,7 +1756,6 @@ function reloadLexicons()
         end)
     end
     
-    logger.info("[CANDIDATE_BAR] 实时重载完成")
 end
 
 -- 导出函数供外部调用

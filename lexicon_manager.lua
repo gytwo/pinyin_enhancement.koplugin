@@ -67,7 +67,6 @@ function M.scanLexiconFiles()
     end
     
     table.sort(items)
-    logger.info("[LEXICON_MANAGER] 扫描到 " .. #items .. " 个码表: " .. table.concat(items, ", "))
     return items
 end
 
@@ -108,7 +107,6 @@ function M.loadLexiconDirectory(dirpath)
                     combined_data[k] = v
                 end
                 count = count + 1
-                logger.info("[LEXICON_MANAGER]   加载: " .. file)
             else
                 logger.warn("[LEXICON_MANAGER]   加载失败: " .. file)
             end
@@ -118,7 +116,6 @@ function M.loadLexiconDirectory(dirpath)
     if count > 0 then
         local entry_count = 0
         for _ in pairs(combined_data) do entry_count = entry_count + 1 end
-        logger.info("[LEXICON_MANAGER] 目录加载完成，共 " .. count .. " 个文件，" .. entry_count .. " 个条目")
     end
     
     return combined_data
@@ -128,11 +125,8 @@ end
 function M.loadEnabledLexiconsData()
     local enabled_items = M.getEnabledLexicons()
     if #enabled_items == 0 then
-        logger.info("[LEXICON_MANAGER] 没有启用的额外码表")
         return {}
     end
-    
-    logger.info("[LEXICON_MANAGER] 启用的码表: " .. table.concat(enabled_items, ", "))
     
     local lexicon_dir = M.getLexiconDir()
     local loaded_data = {}
@@ -143,21 +137,16 @@ function M.loadEnabledLexiconsData()
         
         if attr and attr.mode == "directory" then
             -- 是目录，加载目录下所有文件
-            logger.info("[LEXICON_MANAGER] 加载码表目录: " .. item)
             local data = M.loadLexiconDirectory(path)
             if data and next(data) then
                 loaded_data[item] = data
-                logger.info("[LEXICON_MANAGER] ✓ " .. item .. " 加载成功")
             else
-                logger.warn("[LEXICON_MANAGER] ✗ " .. item .. " 加载失败（无有效数据）")
             end
         elseif attr and attr.mode == "file" then
             -- 是文件，正常加载
-            logger.info("[LEXICON_MANAGER] 加载码表文件: " .. item)
             local data = M.loadLexiconFile(path)
             if data then
                 loaded_data[item] = data
-                logger.info("[LEXICON_MANAGER] ✓ " .. item .. " 加载成功")
             else
                 logger.warn("[LEXICON_MANAGER] ✗ " .. item .. " 加载失败")
             end
